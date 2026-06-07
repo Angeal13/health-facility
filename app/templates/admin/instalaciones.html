@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Instalaciones{% endblock %}
+{% block topbar_title %}Instalaciones Sanitarias{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div><h1>🏥 Instalaciones Sanitarias</h1></div>
+  <a href="{{ url_for('admin.nueva_instalacion') }}" class="btn btn-primario">➕ Nueva Instalación</a>
+</div>
+
+<div class="card">
+  <div class="tabla-wrapper">
+    <table>
+      <thead>
+        <tr><th>Código</th><th>Nombre</th><th>Tipo</th><th>Distrito</th><th>Estado</th></tr>
+      </thead>
+      <tbody>
+        {% for inst in instalaciones %}
+        <tr>
+          <td><span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--verde)">{{ inst.codigo }}</span></td>
+          <td><strong>{{ inst.nombre }}</strong></td>
+          <td>
+            {% set tipo_icons = {'hospital':'🏥','clinica':'🩺','puesto':'⛺','laboratorio':'🔬'} %}
+            {{ tipo_icons.get(inst.tipo,'🏥') }}
+            <span class="badge badge-gris">{{ inst.tipo | title }}</span>
+          </td>
+          <td style="font-size:12px">{{ inst.distrito.nombre if inst.distrito else '—' }}</td>
+          <td>
+            <span class="badge {{ 'badge-verde' if inst.activa else 'badge-rojo' }}">
+              {{ 'Activa' if inst.activa else 'Inactiva' }}
+            </span>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" style="text-align:center;padding:24px;color:#888">Sin instalaciones registradas.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

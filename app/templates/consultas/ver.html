@@ -1,0 +1,272 @@
+{% extends "base.html" %}
+{% block title %}Consulta — {{ consulta.paciente.nombre_completo }}{% endblock %}
+{% block topbar_title %}Detalle de Consulta{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>🩺 Consulta — {{ consulta.fecha_consulta.strftime('%d/%m/%Y %H:%M') }}</h1>
+    <div class="subtitulo">
+      Paciente: <strong>{{ consulta.paciente.nombre_completo }}</strong> ·
+      {{ consulta.paciente.numero_historia }} ·
+      <span class="badge badge-{{ 'verde' if consulta.estado == 'cerrada' else 'naranja' if consulta.estado == 'activa' else 'rojo' }}">
+        {{ consulta.estado | title }}
+      </span>
+    </div>
+  </div>
+  <div style="display:flex;gap:8px">
+    <a href="{{ url_for('pacientes.ver', id=consulta.paciente_id) }}" class="btn btn-secundario">← Paciente</a>
+    <a href="{{ url_for('consultas.nueva', paciente_id=consulta.paciente_id) }}" class="btn btn-primario">🩺 Nueva Consulta</a>
+  </div>
+</div>
+
+<div class="grid-2">
+  <!-- Left: Clinical data -->
+  <div style="display:flex;flex-direction:column;gap:16px">
+
+    <!-- Consult info -->
+    <div class="card">
+      <div class="card-header"><span class="card-title">📋 Datos de la Consulta</span></div>
+      <div style="padding:14px 16px">
+        <table style="font-size:13px">
+          <tr><td style="color:#888;padding:3px 10px 3px 0;white-space:nowrap">Tipo</td>
+              <td><span class="badge badge-verde">{{ consulta.tipo | replace('_',' ') | title }}</span></td></tr>
+          <tr><td style="color:#888;padding:3px 10px 3px 0">Médico</td>
+              <td>{{ consulta.medico.nombre_completo if consulta.medico else '—' }}</td></tr>
+          <tr><td style="color:#888;padding:3px 10px 3px 0">Instalación</td>
+              <td>{{ consulta.instalacion.nombre if consulta.instalacion else '—' }}</td></tr>
+          <tr><td style="color:#888;padding:3px 10px 3px 0">Fecha</td>
+              <td>{{ consulta.fecha_consulta.strftime('%d/%m/%Y a las %H:%M') }}</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <!-- Motivo e historia -->
+    <div class="card">
+      <div class="card-header"><span class="card-title">📝 Motivo y Anamnesis</span></div>
+      <div style="padding:14px 16px">
+        <div style="margin-bottom:12px">
+          <div style="font-size:11px;font-weight:600;color:#888;text-transform:uppercase;margin-bottom:4px">Motivo de consulta</div>
+          <div style="font-size:13px">{{ consulta.motivo_consulta }}</div>
+        </div>
+        {% if consulta.historia_enfermedad %}
+        <div style="margin-bottom:12px">
+          <div style="font-size:11px;font-weight:600;color:#888;text-transform:uppercase;margin-bottom:4px">Historia de la enfermedad</div>
+          <div style="font-size:13px">{{ consulta.historia_enfermedad }}</div>
+        </div>
+        {% endif %}
+        {% if consulta.examen_fisico %}
+        <div style="margin-bottom:12px">
+          <div style="font-size:11px;font-weight:600;color:#888;text-transform:uppercase;margin-bottom:4px">Examen físico</div>
+          <div style="font-size:13px">{{ consulta.examen_fisico }}</div>
+        </div>
+        {% endif %}
+        {% if consulta.plan_tratamiento %}
+        <div>
+          <div style="font-size:11px;font-weight:600;color:#888;text-transform:uppercase;margin-bottom:4px">Plan de tratamiento</div>
+          <div style="font-size:13px">{{ consulta.plan_tratamiento }}</div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Diagnósticos -->
+    <div class="card">
+      <div class="card-header"><span class="card-title">🔬 Diagnósticos</span></div>
+      {% set diags = consulta.diagnosticos.all() %}
+      {% if diags %}
+      <div class="tabla-wrapper">
+        <table>
+          <thead><tr><th>ICD-10</th><th>Diagnóstico</th><th>Tipo</th><th>Principal</th></tr></thead>
+          <tbody>
+            {% for d in diags %}
+            <tr>
+              <td><span class="badge badge-gris">{{ d.enfermedad.codigo_icd10 }}</span></td>
+              <td>{{ d.enfermedad.nombre_es }}
+                {% if d.enfermedad.es_notificable %}
+                <span class="badge badge-rojo" style="font-size:9px;margin-left:4px">NOTIF.</span>
+                {% endif %}
+              </td>
+              <td><span class="badge badge-azul">{{ d.tipo | title }}</span></td>
+              <td>{{ '✓' if d.es_principal else '' }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <p style="color:#888;text-align:center;padding:20px;font-size:13px">Sin diagnósticos registrados.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Right: Vitals, meds, labs -->
+  <div style="display:flex;flex-direction:column;gap:16px">
+
+    <!-- Vitals -->
+    <div class="card">
+      <div class="card-header"><span class="card-title">❤️ Signos Vitales</span></div>
+      <div class="vitals">
+        {% if consulta.temperatura %}
+        <div class="vital-item">
+          <div class="vital-label">Temp.</div>
+          <div class="vital-valor {{ 'warn' if consulta.temperatura >= 38 else '' }}">{{ consulta.temperatura }}°C</div>
+        </div>
+        {% endif %}
+        {% if consulta.presion_sistolica %}
+        <div class="vital-item">
+          <div class="vital-label">PA</div>
+          <div class="vital-valor">{{ consulta.presion_sistolica }}/{{ consulta.presion_diastolica }}</div>
+          <div class="vital-unidad">mmHg</div>
+        </div>
+        {% endif %}
+        {% if consulta.frecuencia_cardiaca %}
+        <div class="vital-item">
+          <div class="vital-label">FC</div>
+          <div class="vital-valor">{{ consulta.frecuencia_cardiaca }}</div>
+          <div class="vital-unidad">lpm</div>
+        </div>
+        {% endif %}
+        {% if consulta.saturacion_oxigeno %}
+        <div class="vital-item">
+          <div class="vital-label">SpO₂</div>
+          <div class="vital-valor {{ 'danger' if consulta.saturacion_oxigeno < 95 else '' }}">{{ consulta.saturacion_oxigeno }}%</div>
+        </div>
+        {% endif %}
+        {% if consulta.peso_kg %}
+        <div class="vital-item">
+          <div class="vital-label">Peso</div>
+          <div class="vital-valor">{{ consulta.peso_kg }}</div>
+          <div class="vital-unidad">kg</div>
+        </div>
+        {% endif %}
+        {% if consulta.imc %}
+        <div class="vital-item">
+          <div class="vital-label">IMC</div>
+          <div class="vital-valor">{{ consulta.imc }}</div>
+          <div class="vital-unidad">kg/m²</div>
+        </div>
+        {% endif %}
+      </div>
+      {% if not (consulta.temperatura or consulta.presion_sistolica or consulta.frecuencia_cardiaca) %}
+      <p style="color:#888;text-align:center;padding:16px;font-size:13px">Sin signos vitales registrados.</p>
+      {% endif %}
+    </div>
+
+    <!-- Prescripciones -->
+    <div class="card">
+      <div class="card-header"><span class="card-title">💊 Prescripciones</span></div>
+      {% set rxs = consulta.medicamentos.all() %}
+      {% if rxs %}
+      <div class="tabla-wrapper">
+        <table>
+          <thead><tr><th>Medicamento</th><th>Dosis</th><th>Vía</th><th>Frecuencia</th><th>Días</th></tr></thead>
+          <tbody>
+            {% for r in rxs %}
+            <tr>
+              <td><strong>{{ r.medicamento }}</strong></td>
+              <td>{{ r.dosis or '—' }}</td>
+              <td>{{ r.via or '—' }}</td>
+              <td>{{ r.frecuencia or '—' }}</td>
+              <td>{{ r.duracion_dias or '—' }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <p style="color:#888;text-align:center;padding:16px;font-size:13px">Sin prescripciones.</p>
+      {% endif %}
+    </div>
+
+    <!-- Exámenes de laboratorio -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">🔬 Exámenes de Laboratorio</span>
+        <button onclick="document.getElementById('form-examen').style.display='block'" class="btn btn-sm btn-secundario">+ Agregar</button>
+      </div>
+
+      <!-- Add exam form (hidden by default) -->
+      <div id="form-examen" style="display:none;padding:14px 16px;border-bottom:1px solid var(--gris-borde)">
+        <form method="POST" action="{{ url_for('consultas.agregar_examen', id=consulta.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="grid-2">
+            <div class="form-grupo" style="margin-bottom:8px">
+              <label>Nombre del examen</label>
+              <input type="text" name="nombre_examen" placeholder="Hemograma, glucemia, gota gruesa…" required>
+            </div>
+            <div class="form-grupo" style="margin-bottom:8px">
+              <label>Notas</label>
+              <input type="text" name="notas" placeholder="Observaciones opcionales">
+            </div>
+          </div>
+          <button type="submit" class="btn btn-sm btn-primario">Guardar</button>
+          <button type="button" onclick="document.getElementById('form-examen').style.display='none'" class="btn btn-sm btn-secundario">Cancelar</button>
+        </form>
+      </div>
+
+      {% set examenes = consulta.examenes.all() %}
+      {% if examenes %}
+      <div class="tabla-wrapper">
+        <table>
+          <thead><tr><th>Examen</th><th>Solicitado</th><th>Estado</th><th>Resultado</th><th></th></tr></thead>
+          <tbody>
+            {% for e in examenes %}
+            <tr>
+              <td><strong>{{ e.nombre_examen }}</strong></td>
+              <td style="font-size:11px">{{ e.fecha_solicitud.strftime('%d/%m/%Y') }}</td>
+              <td>
+                <span class="badge {{ 'badge-verde' if e.estado == 'completado' else 'badge-naranja' }}">
+                  {{ e.estado | title }}
+                </span>
+              </td>
+              <td style="font-size:12px">{{ e.resultado or '—' }}</td>
+              <td>
+                {% if e.estado == 'pendiente' %}
+                <button onclick="cargarResultado({{ e.id }})" class="btn btn-sm btn-secundario">Cargar resultado</button>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <p style="color:#888;text-align:center;padding:16px;font-size:13px">Sin exámenes solicitados.</p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- Modal resultado laboratorio -->
+<div id="modal-resultado" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:200;align-items:center;justify-content:center">
+  <div style="background:var(--blanco);border-radius:12px;padding:24px;width:480px;max-width:95vw">
+    <h3 style="margin-bottom:16px">📋 Cargar Resultado</h3>
+    <form id="form-resultado" method="POST">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="form-grupo">
+        <label>Resultado</label>
+        <textarea name="resultado" rows="4" required placeholder="Resultado del examen…"></textarea>
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px">
+        <button type="button" onclick="document.getElementById('modal-resultado').style.display='none'" class="btn btn-secundario">Cancelar</button>
+        <button type="submit" class="btn btn-primario">💾 Guardar Resultado</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function cargarResultado(examenId) {
+  document.getElementById('form-resultado').action = `/consultas/examen/${examenId}/resultado`;
+  document.getElementById('modal-resultado').style.display = 'flex';
+  document.getElementById('modal-resultado').style.alignItems = 'center';
+  document.getElementById('modal-resultado').style.justifyContent = 'center';
+}
+document.getElementById('modal-resultado').addEventListener('click', e => {
+  if (e.target === e.currentTarget) e.currentTarget.style.display = 'none';
+});
+</script>
+{% endblock %}

@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Error 429{% endblock %}
+{% block content %}
+<div style="text-align:center;padding:60px 20px">
+  <div style="font-size:64px;margin-bottom:16px">
+    {% if '429' == '404' %}🔍{% elif '429' == '403' %}🔒{% elif '429' == '429' %}⏳{% else %}⚠️{% endif %}
+  </div>
+  <h1 style="font-size:32px;color:var(--verde);margin-bottom:8px">
+    {% if '429' == '404' %}Página no encontrada
+    {% elif '429' == '403' %}Acceso denegado
+    {% elif '429' == '429' %}Demasiados intentos
+    {% else %}Error del servidor{% endif %}
+  </h1>
+  <p style="color:var(--ts);font-size:15px;margin-bottom:24px">
+    {% if '429' == '404' %}La página que buscas no existe o fue movida.
+    {% elif '429' == '403' %}No tienes permisos para acceder a esta sección.
+    {% elif '429' == '429' %}Demasiados intentos. Espera un momento antes de intentar de nuevo.
+    {% else %}Ocurrió un error interno. El equipo técnico ha sido notificado.{% endif %}
+  </p>
+  <a href="{{ url_for('pacientes.dashboard') }}" class="btn btn-primario">← Volver al inicio</a>
+</div>
+{% endblock %}

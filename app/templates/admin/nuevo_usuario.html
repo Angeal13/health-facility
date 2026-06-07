@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Nuevo Usuario{% endblock %}
+{% block topbar_title %}Crear Usuario{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div><h1>➕ Nuevo Usuario</h1></div>
+  <a href="{{ url_for('admin.usuarios') }}" class="btn btn-secundario">← Volver</a>
+</div>
+
+<div style="max-width:600px">
+  <div class="card">
+    <div class="card-header"><span class="card-title">Datos del usuario</span></div>
+    <div style="padding:20px">
+      <form method="POST" action="{{ url_for('admin.nuevo_usuario') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="grid-2">
+          <div class="form-grupo">
+            <label>Nombre de usuario *</label>
+            <input type="text" name="nombre_usuario" required placeholder="ej: dr.esono" autocomplete="off">
+          </div>
+          <div class="form-grupo">
+            <label>Nombre completo *</label>
+            <input type="text" name="nombre_completo" required placeholder="Nombre y apellidos">
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="form-grupo">
+            <label>Rol *</label>
+            <select name="rol" required>
+              <option value="">— Seleccionar —</option>
+              {% for r in roles %}
+              <option value="{{ r }}">{{ r | title }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="form-grupo">
+            <label>Instalación</label>
+            <select name="instalacion_id">
+              <option value="">— Sin instalación —</option>
+              {% for i in instalaciones %}
+              <option value="{{ i.id }}">{{ i.nombre }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+        <div class="form-grupo">
+          <label>Email (opcional)</label>
+          <input type="email" name="email" placeholder="correo@ejemplo.com">
+        </div>
+        <div class="form-grupo">
+          <label>Contraseña *</label>
+          <input type="password" name="password" required minlength="8" autocomplete="new-password">
+          <small style="color:#888;font-size:11px">Mínimo 8 caracteres</small>
+        </div>
+        <button type="submit" class="btn btn-primario" style="width:100%;justify-content:center">
+          💾 Crear Usuario
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

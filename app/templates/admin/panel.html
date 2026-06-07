@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Panel de Administración{% endblock %}
+{% block topbar_title %}Administración{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>⚙️ Panel de Administración</h1>
+    <div class="subtitulo">{{ facility_name }} · {{ facility_code }}</div>
+  </div>
+</div>
+
+<div class="grid-4" style="margin-bottom:24px">
+  <div class="stat-card">
+    <span class="stat-icon">👤</span>
+    <div class="stat-label">Usuarios activos</div>
+    <div class="stat-valor">{{ stats.usuarios }}</div>
+  </div>
+  <div class="stat-card">
+    <span class="stat-icon">🏥</span>
+    <div class="stat-label">Instalaciones</div>
+    <div class="stat-valor">{{ stats.instalaciones }}</div>
+  </div>
+  <div class="stat-card">
+    <span class="stat-icon">🦠</span>
+    <div class="stat-label">Enfermedades ICD-10</div>
+    <div class="stat-valor">{{ stats.enfermedades }}</div>
+  </div>
+  <div class="stat-card">
+    <span class="stat-icon">🤒</span>
+    <div class="stat-label">Síntomas</div>
+    <div class="stat-valor">{{ stats.sintomas }}</div>
+  </div>
+</div>
+
+<div class="grid-3">
+  {% set items = [
+    ('👤 Usuarios', 'Crear y gestionar cuentas del personal sanitario', url_for('admin.usuarios'), 'btn-primario'),
+    ('🏥 Instalaciones', 'Registrar hospitales, clínicas y puestos de salud', url_for('admin.instalaciones'), 'btn-secundario'),
+    ('📚 Catálogo ICD-10', 'Gestionar el catálogo de enfermedades', url_for('admin.catalogo_enfermedades'), 'btn-secundario'),
+    ('🌐 Red / Nodos', 'Estado de conexión y sincronización', url_for('red.panel'), 'btn-secundario'),
+    ('🔄 Sincronización', 'Panel de sync con el servidor central', url_for('transferencia.estado_sync'), 'btn-secundario'),
+    ('📊 Epidemiología', 'Panel de vigilancia y alertas', url_for('enfermedades.vigilancia'), 'btn-secundario'),
+  ] %}
+  {% for title, desc, url, cls in items %}
+  <div class="card" style="padding:20px">
+    <div style="font-size:15px;font-weight:600;margin-bottom:6px">{{ title }}</div>
+    <div style="font-size:13px;color:var(--ts);margin-bottom:16px">{{ desc }}</div>
+    <a href="{{ url }}" class="btn {{ cls }}" style="width:100%;justify-content:center">Acceder →</a>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+{% block title %}Vigilancia Epidemiológica{% endblock %}
+{% block topbar_title %}Vigilancia Epidemiológica{% endblock %}
+
+{% block extra_css %}
+<style>
+.alerta-card { border-left: 4px solid; border-radius: 8px; padding: 12px 16px; margin-bottom: 10px; }
+.alerta-emergencia { border-color: var(--rojo); background: #fde8e8; }
+.alerta-alerta { border-color: var(--amarillo); background: #fef3e2; }
+.alerta-vigilancia { border-color: var(--azul); background: #e8f0fe; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1>📈 Vigilancia Epidemiológica</h1>
+        <div class="subtitulo">Monitoreo de enfermedades y tendencias de salud pública — Bioko Island</div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;">
+        <select onchange="location.href='?dias='+this.value" style="padding:7px 10px;border:1px solid var(--gris-borde);border-radius:6px;font-size:13px;">
+            <option value="7" {{ 'selected' if dias==7 }}>Últimos 7 días</option>
+            <option value="30" {{ 'selected' if dias==30 }}>Últimos 30 días</option>
+            <option value="90" {{ 'selected' if dias==90 }}>Últimos 90 días</option>
+            <option value="365" {{ 'selected' if dias==365 }}>Último año</option>
+        </select>
+        <a href="{{ url_for('reportes.epidemiologico') }}?dias={{ dias }}"
+           class="btn btn-secundario">📄 Exportar PDF</a>
+        <a href="{{ url_for('reportes.exportar_csv') }}?dias={{ dias }}"
+           class="btn btn-secundario">📊 CSV/WHO</a>
+    </div>
+</div>
+
+<!-- Alertas activas -->
+{% if alertas %}
+<div class="card" style="border-left: 4px solid var(--rojo);">
+    <div class="card-header">
+        <span class="card-title" style="color:var(--rojo);">⚠️ Alertas Epidemiológicas Activas ({{ alertas|length }})</span>
+    </div>
+    {% for a in alertas %}
+    <div class="alerta-card alerta-{{ a.nivel }}">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+            <div>
+                <strong style="font-size:14px;">{{ a.nivel | upper }}: {{ a.enfermedad.nombre_es }}</strong>
+                {% if a.distrito %}<span style="margin-left:8px;" class="badge badge-gris">{{ a.distrito.nombre }}</span>{% endif %}
+                <div style="font-size:13px;margin-top:4px;color:#555;">
+                    {{ a.casos_detectados }} casos en {{ a.periodo_dias }} días — {{ a.fecha_deteccion.strftime('%d/%m/%Y %H:%M') }}
+                </div>
+                {% if a.descripcion %}<div style="font-size:12px;color:#777;margin-top:4px;">{{ a.descripcion }}</div>{% endif %}
+            </div>
+            <form method="POST" action="{{ url_for('enfermedades.resolver_alerta', id=a.id) }}">
+                <button type="submit" class="btn btn-sm btn-secundario">✓ Resolver</button>
+            </form>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<div class="grid-2">
+    <!-- Top diagnósticos -->
+    <div class="card">
+        <div class="card-header">
+            <span class="card-title">🦠 Principales Diagnósticos</span>
+        </div>
+        {% if casos_por_enfermedad %}
+        {% set max_c = casos_por_enfermedad[0][4] %}
+        {% for nombre, codigo, notif, tropical, total in casos_por_enfermedad %}
+        <div style="margin-bottom:12px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+                <span style="font-size:13px;">
+                    <span class="badge badge-gris" style="font-size:10px;margin-right:4px;">{{ codigo }}</span>
+                    {{ nombre }}
+                    {% if notif %}<span class="badge badge-rojo" style="margin-left:4px;font-size:9px;">NOTIF.</span>{% endif %}
+                    {% if tropical %}<span class="badge badge-naranja" style="margin-left:4px;font-size:9px;">TROPICAL</span>{% endif %}
+                </span>
+                <strong style="font-family:'IBM Plex Mono',monospace;">{{ total }}</strong>
+            </div>
+            <div style="background:#e8e8e8;border-radius:4px;height:8px;">
+                <div style="background:var(--verde);height:8px;border-radius:4px;width:{{ (total / max_c * 100)|round }}%;transition:width 0.5s;"></div>
+            </div>
+        </div>
+        {% endfor %}
+        {% else %}
+        <p style="color:#888;text-align:center;padding:20px;font-size:13px;">Sin datos para el periodo seleccionado.</p>
+        {% endif %}
+    </div>
+
+    <!-- Casos por distrito -->
+    <div class="card">
+        <div class="card-header">
+            <span class="card-title">📍 Distribución por Distrito</span>
+            <a href="{{ url_for('mapa.index') }}" class="btn btn-sm btn-secundario">Ver mapa</a>
+        </div>
+        {% if casos_por_distrito %}
+        <div class="tabla-wrapper">
+            <table>
+                <thead><tr><th>Distrito</th><th>Casos</th></tr></thead>
+                <tbody>
+                    {% for nombre, total in casos_por_distrito %}
+                    <tr>
+                        <td>{{ nombre }}</td>
+                        <td>
+                            <span class="badge {{ 'badge-rojo' if total > 50 else 'badge-naranja' if total > 20 else 'badge-verde' }}">
+                                {{ total }}
+                            </span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p style="color:#888;text-align:center;padding:20px;font-size:13px;">Sin datos.</p>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Tendencia semanal -->
+<div class="card">
+    <div class="card-header">
+        <span class="card-title">📅 Tendencia Semanal de Consultas</span>
+    </div>
+    <div id="grafico-tendencia" style="height:200px;display:flex;align-items:flex-end;gap:8px;padding:10px 0;">
+        {% if tendencia %}
+        {% set max_t = tendencia | map(attribute='total') | max %}
+        {% for s in tendencia %}
+        <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;">
+            <span style="font-size:10px;font-weight:600;color:var(--verde);">{{ s.total }}</span>
+            <div style="width:100%;background:var(--verde);border-radius:4px 4px 0 0;height:{{ [(s.total / (max_t or 1) * 160)|int, 4]|max }}px;transition:height 0.5s;"></div>
+            <span style="font-size:10px;color:#888;">{{ s.inicio }}</span>
+        </div>
+        {% endfor %}
+        {% endif %}
+    </div>
+</div>
+
+<!-- Enfermedades notificables -->
+{% if notificables %}
+<div class="card">
+    <div class="card-header">
+        <span class="card-title" style="color:var(--rojo);">🚨 Enfermedades de Notificación Obligatoria</span>
+    </div>
+    <p style="font-size:12px;color:#888;margin-bottom:12px;">Estas enfermedades deben notificarse al Ministerio de Sanidad de Guinea Ecuatorial.</p>
+    <div class="tabla-wrapper">
+        <table>
+            <thead><tr><th>Código</th><th>Enfermedad</th><th>Casos (período)</th><th>Estado</th></tr></thead>
+            <tbody>
+                {% for nombre, codigo, total in notificables %}
+                <tr>
+                    <td><span class="badge badge-gris">{{ codigo }}</span></td>
+                    <td><strong>{{ nombre }}</strong></td>
+                    <td><span class="badge {{ 'badge-rojo' if total > 5 else 'badge-naranja' }}">{{ total }}</span></td>
+                    <td>
+                        {% if total > 10 %}
+                            <span class="badge badge-rojo">ALERTA</span>
+                        {% elif total > 3 %}
+                            <span class="badge badge-naranja">VIGILANCIA</span>
+                        {% else %}
+                            <span class="badge badge-verde">Normal</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

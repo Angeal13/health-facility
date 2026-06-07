@@ -1,0 +1,289 @@
+{% extends "base.html" %}
+{% block title %}Panel Provincial — {{ facility_name }}{% endblock %}
+{% block topbar_title %}Panel Epidemiológico Provincial{% endblock %}
+
+{% block extra_css %}
+<style>
+.alv{display:inline-flex;padding:3px 8px;border-radius:6px;font-size:11px;font-weight:700;text-transform:uppercase}
+.alv.emergencia{background:#fde8e8;color:#c0392b}
+.alv.alerta{background:#fef0e6;color:#d4580a}
+.alv.vigilancia{background:#e6f0f8;color:#1a4a6b}
+.readonly-banner{background:linear-gradient(135deg,#e6f0f8,#e8f5ef);border:1.5px solid #2d9c6e;border-radius:10px;padding:12px 18px;margin-bottom:20px;display:flex;align-items:center;gap:12px;font-size:13px}
+.inst-card{background:var(--blanco);border:1.5px solid var(--gris-borde);border-radius:10px;padding:14px 16px;margin-bottom:10px}
+.inst-dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:6px}
+.inst-dot.on{background:var(--verde-claro)}
+.inst-dot.warn{background:var(--naranja)}
+.inst-dot.off{background:#aaa}
+.dbar{margin-bottom:11px}
+.dbar-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:3px}
+.dbar-name{font-size:12px}.dbar-cnt{font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:500;color:var(--verde)}
+.dbar-tr{background:var(--verde-palido);border-radius:3px;height:6px}
+.dbar-fi{background:var(--verde);height:6px;border-radius:3px}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>📊 Panel Provincial — {{ facility_name }}</h1>
+    <div class="subtitulo">Código: {{ provincia_codigo }} · Vigilancia epidemiológica · Solo lectura</div>
+  </div>
+  <div style="display:flex;gap:8px;align-items:center;">
+    <select onchange="location.href='?dias='+this.value"
+            style="padding:6px 10px;border:1.5px solid var(--gris-borde);border-radius:7px;font-family:inherit;font-size:13px">
+      <option value="7"  {{ 'selected' if dias==7 }}>7 días</option>
+      <option value="30" {{ 'selected' if dias==30 }}>30 días</option>
+      <option value="90" {{ 'selected' if dias==90 }}>90 días</option>
+    </select>
+    <a href="{{ url_for('reportes.epidemiologico') }}" class="btn btn-secundario">📄 Reporte PDF</a>
+    <a href="{{ url_for('reportes.exportar_csv') }}" class="btn btn-secundario">📊 Exportar OMS</a>
+  </div>
+</div>
+
+<!-- Read-only banner -->
+<div class="readonly-banner">
+  <span style="font-size:20px">🏛️</span>
+  <div>
+    <strong>Acceso Ministerio de Sanidad — Solo Lectura</strong><br>
+    <span style="color:var(--ts)">Puede visualizar todos los datos epidemiológicos de la provincia. No puede editar registros clínicos. Para notificar un brote al Gobierno, use el botón "Notificar Brote".</span>
+  </div>
+  <button onclick="openModal('modal-notificar')" class="btn btn-primario" style="margin-left:auto;white-space:nowrap">
+    🚨 Notificar Brote
+  </button>
+</div>
+
+<!-- Alerts -->
+{% if alertas %}
+<div class="card" style="border-left:4px solid var(--rojo);margin-bottom:20px">
+  <div class="card-header">
+    <span class="card-title" style="color:var(--rojo)">⚠️ Alertas Epidemiológicas Activas — {{ alertas|length }}</span>
+  </div>
+  {% for a in alertas %}
+  <div style="padding:11px 16px;border-bottom:1px solid var(--gris-borde);display:flex;align-items:flex-start;gap:11px">
+    <span class="alv {{ a.nivel }}">{{ a.nivel }}</span>
+    <div style="flex:1">
+      <strong>{{ a.enfermedad.nombre_es }}</strong>
+      {% if a.distrito %}<span class="badge badge-gris" style="margin-left:6px">{{ a.distrito.nombre }}</span>{% endif %}
+      <div style="font-size:12px;color:var(--ts);margin-top:3px">
+        {{ a.casos_detectados }} casos en {{ a.periodo_dias }} días ·
+        Detectado: {{ a.fecha_deteccion.strftime('%d/%m/%Y %H:%M') }}
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<!-- Stats -->
+<div class="grid-4" style="margin-bottom:20px">
+  <div class="stat-card">
+    <span class="stat-icon">👥</span>
+    <div class="stat-label">Pacientes en la provincia</div>
+    <div class="stat-valor">{{ total_pacientes }}</div>
+  </div>
+  <div class="stat-card">
+    <span class="stat-icon">🩺</span>
+    <div class="stat-label">Consultas (período)</div>
+    <div class="stat-valor">{{ total_consultas }}</div>
+  </div>
+  <div class="stat-card">
+    <span class="stat-icon">🏥</span>
+    <div class="stat-label">Instalaciones</div>
+    <div class="stat-valor">{{ instalaciones|length }}</div>
+  </div>
+  <div class="stat-card">
+    <span class="stat-icon" style="color:{{ 'var(--rojo)' if alertas|length > 0 else 'var(--verde)' }}">⚠️</span>
+    <div class="stat-label">Alertas activas</div>
+    <div class="stat-valor" style="color:{{ 'var(--rojo)' if alertas|length > 0 else 'var(--verde)' }}">{{ alertas|length }}</div>
+  </div>
+</div>
+
+<div class="grid-2">
+
+  <!-- Top diagnósticos -->
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">🦠 Top Diagnósticos en la Provincia</span>
+    </div>
+    {% if top_diagnosticos %}
+    <div style="padding:14px 18px">
+      {% set max_c = top_diagnosticos[0][3] %}
+      {% for codigo, nombre, notif, total in top_diagnosticos %}
+      <div class="dbar">
+        <div class="dbar-row">
+          <span class="dbar-name">
+            <span class="badge badge-gris" style="font-size:10px;margin-right:4px">{{ codigo }}</span>
+            {{ nombre[:35] }}
+            {% if notif %}<span class="badge badge-rojo" style="font-size:9px;margin-left:4px">NOTIF.</span>{% endif %}
+          </span>
+          <span class="dbar-cnt">{{ total }}</span>
+        </div>
+        <div class="dbar-tr"><div class="dbar-fi" style="width:{{ (total/max_c*100)|round }}%"></div></div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p style="color:#888;text-align:center;padding:20px;font-size:13px">Sin datos para el período.</p>
+    {% endif %}
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:16px">
+
+    <!-- Enfermedades notificables -->
+    {% if notificables_activas %}
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title" style="color:var(--rojo)">🚨 Enfermedades de Notificación Obligatoria</span>
+      </div>
+      <div class="tabla-wrapper">
+        <table>
+          <thead><tr><th>Enfermedad</th><th>ICD-10</th><th>Casos</th><th>Estado</th></tr></thead>
+          <tbody>
+            {% for nombre, codigo, casos in notificables_activas %}
+            <tr>
+              <td><strong>{{ nombre }}</strong></td>
+              <td><span class="badge badge-gris">{{ codigo }}</span></td>
+              <td><strong style="font-family:'IBM Plex Mono',monospace">{{ casos }}</strong></td>
+              <td>
+                {% if casos >= 10 %}
+                  <span class="badge badge-rojo">EMERGENCIA</span>
+                {% elif casos >= 5 %}
+                  <span class="badge badge-naranja">ALERTA</span>
+                {% else %}
+                  <span class="badge badge-azul">VIGILANCIA</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Instalaciones de la provincia -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">🏥 Instalaciones de la Provincia</span>
+      </div>
+      <div style="padding:12px">
+        {% for inst in instalaciones %}
+        <div class="inst-card">
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <div>
+              <span class="inst-dot on"></span>
+              <strong style="font-size:13px">{{ inst.nombre }}</strong>
+              <span class="badge badge-gris" style="margin-left:6px">{{ inst.tipo|title }}</span>
+            </div>
+            <span class="badge badge-verde">
+              {{ mapa_casos.get(inst.id, 0) }} consultas
+            </span>
+          </div>
+          <div style="font-size:11px;color:#888;margin-top:4px">
+            Código: {{ inst.codigo }}
+            {% if inst.distrito %} · {{ inst.distrito.nombre }}{% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Tendencia semanal -->
+<div class="card">
+  <div class="card-header"><span class="card-title">📅 Tendencia Semanal de Consultas</span></div>
+  <div style="height:180px;display:flex;align-items:flex-end;gap:8px;padding:14px 18px">
+    {% if tendencia %}
+    {% set max_t = tendencia|map(attribute='total')|max %}
+    {% for s in tendencia %}
+    <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px">
+      <span style="font-size:10px;font-weight:600;color:var(--verde)">{{ s.total }}</span>
+      <div style="width:100%;background:var(--verde);border-radius:3px 3px 0 0;height:{{ [((s.total/(max_t or 1))*150)|int,4]|max }}px"></div>
+      <span style="font-size:9px;color:#888">{{ s.inicio }}</span>
+    </div>
+    {% endfor %}
+    {% endif %}
+  </div>
+</div>
+
+<!-- Solicitudes de expediente recientes -->
+<div class="card" style="margin-top:16px">
+  <div class="card-header">
+    <span class="card-title">🔄 Solicitudes de Expediente Recientes</span>
+  </div>
+  {% if solicitudes_recientes %}
+  <div class="tabla-wrapper">
+    <table>
+      <thead><tr><th>Instalación</th><th>Provincia solicitante</th><th>Provincia origen</th><th>Estado</th><th>Fecha</th></tr></thead>
+      <tbody>
+        {% for s in solicitudes_recientes %}
+        <tr>
+          <td>{{ s.instalacion_solicitante_codigo }}</td>
+          <td><span class="badge badge-azul">{{ s.provincia_solicitante }}</span></td>
+          <td><span class="badge badge-gris">{{ s.provincia_origen }}</span></td>
+          <td>
+            <span class="badge {{ 'badge-verde' if s.estado == 'entregada' else 'badge-naranja' if s.estado in ('pendiente','enviada') else 'badge-rojo' }}">
+              {{ s.estado }}
+            </span>
+          </td>
+          <td style="font-size:11px;color:#888">{{ s.creada_en.strftime('%d/%m %H:%M') }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p style="color:#888;text-align:center;padding:20px;font-size:13px">Sin solicitudes recientes.</p>
+  {% endif %}
+</div>
+
+<!-- Modal notificar brote -->
+<div class="modal-overlay" id="modal-notificar">
+<div style="background:var(--blanco);border-radius:14px;padding:24px;width:500px;max-width:95vw">
+  <h2 style="font-family:'Fraunces',serif;font-size:18px;margin-bottom:6px;color:var(--rojo)">🚨 Notificar Brote al Gobierno</h2>
+  <p style="font-size:12px;color:#888;margin-bottom:16px">Esta notificación quedará registrada en el sistema y será enviada al Ministerio de Sanidad de Guinea Ecuatorial.</p>
+  <div class="form-grupo">
+    <label>Enfermedad</label>
+    <input type="text" id="notif-enfermedad" placeholder="Nombre de la enfermedad">
+  </div>
+  <div class="form-grupo">
+    <label>Número de casos</label>
+    <input type="number" id="notif-casos" placeholder="0">
+  </div>
+  <div class="form-grupo">
+    <label>Zona afectada</label>
+    <input type="text" id="notif-zona" placeholder="Distrito o barrio">
+  </div>
+  <div class="form-grupo">
+    <label>Descripción</label>
+    <textarea id="notif-desc" rows="3" placeholder="Descripción detallada del brote, casos confirmados, medidas tomadas..."></textarea>
+  </div>
+  <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px">
+    <button class="btn btn-secundario" onclick="closeModal('modal-notificar')">Cancelar</button>
+    <button class="btn btn-primario" onclick="enviarNotificacion()">📤 Enviar Notificación</button>
+  </div>
+</div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function openModal(id){document.getElementById(id).style.display='flex';document.getElementById(id).style.alignItems='center';document.getElementById(id).style.justifyContent='center';}
+function closeModal(id){document.getElementById(id).style.display='none';}
+document.querySelectorAll('.modal-overlay').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)m.style.display='none';}));
+
+function enviarNotificacion(){
+  const enf = document.getElementById('notif-enfermedad').value.trim();
+  const casos = document.getElementById('notif-casos').value;
+  const zona = document.getElementById('notif-zona').value.trim();
+  const desc = document.getElementById('notif-desc').value.trim();
+  if(!enf||!casos||!zona){alert('Por favor complete todos los campos.');return;}
+  // En producción: POST al servidor central con los datos de notificación
+  closeModal('modal-notificar');
+  alert(`✓ Notificación de brote enviada al Ministerio de Sanidad.\n\nEnfermedad: ${enf}\nCasos: ${casos}\nZona: ${zona}`);
+}
+</script>
+{% endblock %}

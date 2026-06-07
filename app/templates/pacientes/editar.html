@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+{% block title %}Editar — {{ paciente.nombre_completo }}{% endblock %}
+{% block topbar_title %}Editar Paciente{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>✏️ Editar Paciente</h1>
+    <div class="subtitulo">{{ paciente.nombre_completo }} · {{ paciente.numero_historia }}</div>
+  </div>
+  <a href="{{ url_for('pacientes.ver', id=paciente.id) }}" class="btn btn-secundario">← Volver</a>
+</div>
+
+<form method="POST" action="{{ url_for('pacientes.editar', id=paciente.id) }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-header"><span class="card-title">👤 Identificación</span></div>
+      <div style="padding:16px">
+        <div class="grid-2">
+          <div class="form-grupo">
+            <label>Nombres *</label>
+            <input type="text" name="nombres" required value="{{ paciente.nombres }}">
+          </div>
+          <div class="form-grupo">
+            <label>Apellidos *</label>
+            <input type="text" name="apellidos" required value="{{ paciente.apellidos }}">
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="form-grupo">
+            <label>Fecha de Nacimiento *</label>
+            <input type="date" name="fecha_nacimiento" required
+                   value="{{ paciente.fecha_nacimiento.strftime('%Y-%m-%d') }}">
+          </div>
+          <div class="form-grupo">
+            <label>Sexo *</label>
+            <select name="sexo" required>
+              <option value="F" {{ 'selected' if paciente.sexo == 'F' }}>Femenino</option>
+              <option value="M" {{ 'selected' if paciente.sexo == 'M' }}>Masculino</option>
+            </select>
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="form-grupo">
+            <label>Teléfono</label>
+            <input type="text" name="telefono" value="{{ paciente.telefono or '' }}">
+          </div>
+          <div class="form-grupo">
+            <label>Grupo Sanguíneo</label>
+            <select name="grupo_sanguineo">
+              <option value="">— Desconocido —</option>
+              {% for g in ['A+','A-','B+','B-','O+','O-','AB+','AB-'] %}
+              <option value="{{ g }}" {{ 'selected' if paciente.grupo_sanguineo == g }}>{{ g }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><span class="card-title">📍 Ubicación</span></div>
+      <div style="padding:16px">
+        <div class="form-grupo">
+          <label>Distrito</label>
+          <select name="distrito_id" id="sel-distrito" onchange="cargarBarrios(this.value)">
+            <option value="">— Seleccionar —</option>
+            {% for d in distritos %}
+            <option value="{{ d.id }}" {{ 'selected' if paciente.distrito_id == d.id }}>{{ d.nombre }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-grupo">
+          <label>Barrio</label>
+          <select name="barrio_id" id="sel-barrio">
+            <option value="">— Seleccionar —</option>
+            {% for b in barrios %}
+            <option value="{{ b.id }}"
+                    data-distrito="{{ b.distrito_id }}"
+                    {{ 'selected' if paciente.barrio_id == b.id }}>{{ b.nombre }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-grupo">
+          <label>Dirección</label>
+          <input type="text" name="direccion" value="{{ paciente.direccion or '' }}">
+        </div>
+        <div class="grid-2">
+          <div class="form-grupo">
+            <label>Ocupación</label>
+            <input type="text" name="ocupacion" value="{{ paciente.ocupacion or '' }}">
+          </div>
+          <div class="form-grupo">
+            <label>Etnia</label>
+            <input type="text" name="etnia" value="{{ paciente.etnia or '' }}">
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><span class="card-title">🩺 Antecedentes Clínicos</span></div>
+    <div style="padding:16px">
+      <div class="grid-2">
+        <div class="form-grupo">
+          <label>Alergias conocidas</label>
+          <textarea name="alergias" rows="3">{{ paciente.alergias or '' }}</textarea>
+        </div>
+        <div class="form-grupo">
+          <label>Condiciones crónicas</label>
+          <textarea name="condiciones_cronicas" rows="3">{{ paciente.condiciones_cronicas or '' }}</textarea>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:4px">
+    <a href="{{ url_for('pacientes.ver', id=paciente.id) }}" class="btn btn-secundario">Cancelar</a>
+    <button type="submit" class="btn btn-primario">💾 Guardar Cambios</button>
+  </div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const allBarrios = Array.from(document.querySelectorAll('#sel-barrio option'));
+function cargarBarrios(distritoId) {
+  const sel = document.getElementById('sel-barrio');
+  const current = sel.value;
+  sel.innerHTML = '<option value="">— Seleccionar —</option>';
+  if (!distritoId) return;
+  allBarrios.forEach(opt => {
+    if (opt.dataset.distrito === distritoId) {
+      const clone = opt.cloneNode(true);
+      if (clone.value === current) clone.selected = true;
+      sel.appendChild(clone);
+    }
+  });
+}
+// Init barrios on load
+cargarBarrios(document.getElementById('sel-distrito').value);
+</script>
+{% endblock %}

@@ -1,0 +1,222 @@
+{% extends "base.html" %}
+{% block title %}Mapa de Dispersión{% endblock %}
+{% block topbar_title %}Mapa Epidemiológico{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+#mapa { height: 520px; border-radius: 10px; border: 1px solid var(--gris-borde); }
+.leyenda { background: white; padding: 12px 16px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); font-size: 12px; }
+.leyenda h4 { margin-bottom: 8px; font-size: 13px; }
+.leyenda-item { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
+.leyenda-circulo { border-radius: 50%; border: 2px solid rgba(0,0,0,0.2); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1>🗺️ Mapa de Dispersión de Enfermedades</h1>
+        <div class="subtitulo">Distribución geográfica de casos — Bioko Island / Guinea Ecuatorial</div>
+    </div>
+</div>
+
+<div class="grid-2" style="margin-bottom:16px;">
+    <div class="card" style="padding:14px;">
+        <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">
+            <div class="form-grupo" style="margin:0;flex:1;">
+                <label>Enfermedad</label>
+                <select id="filtro-enfermedad" style="width:100%;">
+                    <option value="">— Todas las enfermedades —</option>
+                    {% for e in enfermedades %}
+                    <option value="{{ e.id }}">{{ e.codigo_icd10 }} {{ e.nombre_es }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-grupo" style="margin:0;">
+                <label>Período</label>
+                <select id="filtro-dias">
+                    <option value="7">7 días</option>
+                    <option value="30" selected>30 días</option>
+                    <option value="90">90 días</option>
+                    <option value="365">1 año</option>
+                </select>
+            </div>
+            <div class="form-grupo" style="margin:0;">
+                <label>Vista</label>
+                <select id="tipo-vista">
+                    <option value="calor">Mapa de calor</option>
+                    <option value="burbujas">Burbujas</option>
+                </select>
+            </div>
+            <button onclick="actualizarMapa()" class="btn btn-primario" style="margin-bottom:1px;">🔄 Actualizar</button>
+        </div>
+    </div>
+    <div class="card" style="padding:14px;">
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;text-align:center;">
+            <div>
+                <div style="font-size:11px;color:#888;font-weight:600;">ZONAS CON CASOS</div>
+                <div id="stat-zonas" style="font-size:24px;font-weight:700;color:var(--verde);font-family:'IBM Plex Mono',monospace;">—</div>
+            </div>
+            <div>
+                <div style="font-size:11px;color:#888;font-weight:600;">TOTAL CASOS</div>
+                <div id="stat-casos" style="font-size:24px;font-weight:700;color:var(--verde);font-family:'IBM Plex Mono',monospace;">—</div>
+            </div>
+            <div>
+                <div style="font-size:11px;color:#888;font-weight:600;">ALERTAS ACTIVAS</div>
+                <div id="stat-alertas" style="font-size:24px;font-weight:700;color:var(--rojo);font-family:'IBM Plex Mono',monospace;">—</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card" style="padding:0;overflow:hidden;">
+    <div id="mapa"></div>
+</div>
+
+<div class="grid-2" style="margin-top:16px;">
+    <div class="card">
+        <div class="card-header"><span class="card-title">📍 Casos por Distrito</span></div>
+        <div id="tabla-distritos" class="tabla-wrapper"></div>
+    </div>
+    <div class="card">
+        <div class="card-header"><span class="card-title">⚠️ Alertas Activas en el Mapa</span></div>
+        <div id="lista-alertas-mapa">
+            <p style="color:#888;font-size:13px;text-align:center;padding:20px;">Cargando...</p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+<script>
+// Centrado en Bioko Island
+const mapa = L.map('mapa').setView([3.75, 8.78], 10);
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap | Bioko Health',
+    maxZoom: 18
+}).addTo(mapa);
+
+let capaCalor = null;
+let capaBurbujas = L.layerGroup().addTo(mapa);
+let capaAlertas = L.layerGroup().addTo(mapa);
+
+async function actualizarMapa() {
+    const enfermedadId = document.getElementById('filtro-enfermedad').value;
+    const dias = document.getElementById('filtro-dias').value;
+    const tipoVista = document.getElementById('tipo-vista').value;
+
+    let url = `/mapa/datos-calor?dias=${dias}`;
+    if (enfermedadId) url += `&enfermedad_id=${enfermedadId}`;
+
+    const res = await fetch(url);
+    const datos = await res.json();
+
+    // Limpiar capas
+    if (capaCalor) { mapa.removeLayer(capaCalor); capaCalor = null; }
+    capaBurbujas.clearLayers();
+
+    document.getElementById('stat-casos').textContent = datos.total_casos || 0;
+    document.getElementById('stat-zonas').textContent = datos.puntos.length;
+
+    if (!datos.puntos.length) return;
+
+    const maxVal = Math.max(...datos.puntos.map(p => p[2]));
+
+    if (tipoVista === 'calor') {
+        capaCalor = L.heatLayer(datos.puntos, {
+            radius: 35,
+            blur: 25,
+            maxZoom: 15,
+            gradient: { 0.2: '#1a6b4a', 0.5: '#f0c040', 0.8: '#d4580a', 1.0: '#c0392b' }
+        }).addTo(mapa);
+    } else {
+        datos.puntos.forEach(p => {
+            const [lat, lng, casos] = p;
+            const radio = Math.max(8, Math.sqrt(casos / maxVal) * 40);
+            const color = casos > maxVal * 0.7 ? '#c0392b' :
+                          casos > maxVal * 0.4 ? '#d4580a' : '#1a6b4a';
+
+            L.circleMarker([lat, lng], {
+                radius: radio,
+                fillColor: color,
+                color: 'white',
+                weight: 2,
+                opacity: 0.9,
+                fillOpacity: 0.7
+            }).bindPopup(`<strong>${casos} casos</strong><br><small>${lat.toFixed(4)}, ${lng.toFixed(4)}</small>`)
+              .addTo(capaBurbujas);
+        });
+    }
+
+    // Cargar datos de distritos
+    cargarDatosDistrito(dias, enfermedadId);
+}
+
+async function cargarDatosDistrito(dias, enfermedadId) {
+    let url = `/mapa/distritos-geojson?dias=${dias}`;
+    const res = await fetch(url);
+    const gj = await res.json();
+
+    const tabla = document.getElementById('tabla-distritos');
+    const filas = gj.features
+        .filter(f => f.properties.consultas > 0)
+        .sort((a, b) => b.properties.consultas - a.properties.consultas);
+
+    tabla.innerHTML = `
+    <table>
+        <thead><tr><th>Distrito</th><th>Consultas</th><th>Pacientes</th></tr></thead>
+        <tbody>
+            ${filas.map(f => `
+            <tr>
+                <td>${f.properties.nombre}</td>
+                <td><span class="badge ${f.properties.consultas > 50 ? 'badge-rojo' : 'badge-verde'}">${f.properties.consultas}</span></td>
+                <td>${f.properties.pacientes}</td>
+            </tr>`).join('')}
+        </tbody>
+    </table>`;
+}
+
+async function cargarAlertas() {
+    const res = await fetch('/mapa/alertas-activas');
+    const alertas = await res.json();
+
+    document.getElementById('stat-alertas').textContent = alertas.length;
+    capaAlertas.clearLayers();
+
+    const lista = document.getElementById('lista-alertas-mapa');
+    if (!alertas.length) {
+        lista.innerHTML = '<p style="color:#888;font-size:13px;text-align:center;padding:20px;">Sin alertas activas.</p>';
+        return;
+    }
+
+    lista.innerHTML = alertas.map(a => `
+    <div class="alerta-card" style="border-left:4px solid ${a.nivel==='emergencia'?'#c0392b':a.nivel==='alerta'?'#e8a020':'#1a4a6b'};background:${a.nivel==='emergencia'?'#fde8e8':a.nivel==='alerta'?'#fef3e2':'#e8f0fe'};border-radius:8px;padding:10px 14px;margin-bottom:8px;">
+        <strong>${a.nivel.toUpperCase()}: ${a.enfermedad}</strong>
+        <div style="font-size:12px;color:#555;">${a.distrito} — ${a.casos} casos — ${a.fecha}</div>
+    </div>`).join('');
+
+    alertas.forEach(a => {
+        const icono = L.divIcon({
+            html: `<div style="background:${a.nivel==='emergencia'?'#c0392b':a.nivel==='alerta'?'#e8a020':'#1a4a6b'};color:white;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:14px;border:2px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.3);">⚠️</div>`,
+            iconSize: [28, 28], iconAnchor: [14, 14]
+        });
+        L.marker([a.lat, a.lng], { icon: icono })
+         .bindPopup(`<strong>${a.nivel.toUpperCase()}</strong><br>${a.enfermedad}<br>${a.casos} casos<br>${a.fecha}`)
+         .addTo(capaAlertas);
+    });
+}
+
+// Inicializar
+actualizarMapa();
+cargarAlertas();
+
+// Actualizar al cambiar filtros
+document.getElementById('filtro-enfermedad').addEventListener('change', actualizarMapa);
+document.getElementById('filtro-dias').addEventListener('change', actualizarMapa);
+document.getElementById('tipo-vista').addEventListener('change', actualizarMapa);
+</script>
+{% endblock %}

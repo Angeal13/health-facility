@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% block title %}Lista de Pacientes{% endblock %}
+{% block topbar_title %}Lista de Pacientes{% endblock %}
+
+{% block content %}
+<div class="page-header" style="margin-bottom: 32px;">
+  <div>
+    <h1 style="font-size: 28px; font-weight: 800; color: var(--primary); letter-spacing: -0.5px;">Directorio de Pacientes</h1>
+    <div style="font-size: 15px; color: var(--text-muted); font-weight: 500;">
+        {{ pacientes.total }} registros encontrados{% if busqueda %} para "{{ busqueda }}"{% endif %}
+    </div>
+  </div>
+  <a href="{{ url_for('pacientes.nuevo') }}" class="btn btn-primario">
+    <span class="ico">👤</span> Registrar Nuevo Paciente
+  </a>
+</div>
+
+<!-- Search bar -->
+<div class="card" style="padding: 24px; margin-bottom: 24px; border-radius: 16px;">
+  <form method="GET" action="{{ url_for('pacientes.lista') }}" style="display:flex; gap:16px; align-items:flex-end; flex-wrap:wrap">
+    <div class="form-grupo" style="margin:0; flex:2; min-width:260px">
+      <label>Búsqueda inteligente</label>
+      <div style="position: relative;">
+          <span style="position: absolute; left: 14px; top: 50%; transform: translateY(-50%); opacity: 0.4;">🔍</span>
+          <input type="text" name="q" value="{{ busqueda }}" placeholder="Nombre, DNI o N° de historia..." style="padding-left: 40px;">
+      </div>
+    </div>
+    <div class="form-grupo" style="margin:0; flex:1; min-width:200px">
+      <label>Filtrar por Distrito</label>
+      <select name="distrito">
+        <option value="">Todos los distritos</option>
+        {% for d in distritos %}
+        <option value="{{ d.id }}" {{ 'selected' if distrito_seleccionado == d.id }}>{{ d.nombre }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div style="display: flex; gap: 8px;">
+        <button type="submit" class="btn btn-cta">Aplicar Filtros</button>
+        {% if busqueda or distrito_seleccionado %}
+        <a href="{{ url_for('pacientes.lista') }}" class="btn btn-secundario" title="Limpiar búsqueda">✕</a>
+        {% endif %}
+    </div>
+  </form>
+</div>
+
+<div class="tabla-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>Nº Historia</th>
+          <th>Nombre Completo</th>
+          <th>DNI / Identidad</th>
+          <th>Perfil</th>
+          <th>Distrito</th>
+          <th>Última Actividad</th>
+          <th style="text-align: right;">Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in pacientes.items %}
+        {% set ultima = p.consultas.order_by('Consulta.fecha_consulta.desc()').first() %}
+        <tr onclick="location.href='{{ url_for('pacientes.ver', id=p.id) }}'" style="cursor:pointer">
+          <td>
+            <span class="badge badge-gris" style="font-family: monospace; font-size: 13px;">{{ p.numero_historia }}</span>
+          </td>
+          <td>
+            <div style="font-weight: 700; color: var(--primary);">{{ p.apellidos }}, {{ p.nombres }}</div>
+          </td>
+          <td>
+            <span style="color: var(--text-muted); font-size: 13px;">{{ p.dni or '—' }}</span>
+          </td>
+          <td>
+              <span class="badge {{ 'badge-azul' if p.sexo == 'M' else 'badge-naranja' }}" style="font-size: 11px;">
+                  {{ p.edad }}a · {{ p.sexo }}
+              </span>
+          </td>
+          <td><span style="font-weight: 500;">{{ p.distrito.nombre if p.distrito else '—' }}</span></td>
+          <td>
+            <div style="font-size: 13px; color: var(--text-muted);">
+                {{ ultima.fecha_consulta.strftime('%d/%m/%Y') if ultima else 'Sin registro' }}
+            </div>
+          </td>
+          <td style="text-align: right;">
+            <a href="{{ url_for('pacientes.ver', id=p.id) }}" class="btn btn-sm btn-secundario" onclick="event.stopPropagation()">
+                Ver Ficha
+            </a>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="7" style="text-align:center; padding:64px; color: var(--text-muted);">
+            <div style="font-size: 48px; margin-bottom: 16px; opacity: 0.2;">👤</div>
+            <p style="font-size: 16px;">
+                {% if busqueda %}No se encontraron pacientes para "{{ busqueda }}"{% else %}No hay pacientes registrados aún.{% endif %}
+            </p>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+</div>
+
+  <!-- Pagination -->
+  {% if pacientes.pages > 1 %}
+  <div class="paginacion">
+    {% if pacientes.has_prev %}
+    <a href="{{ url_for('pacientes.lista', pagina=pacientes.prev_num, q=busqueda, distrito=distrito_seleccionado) }}">← Anterior</a>
+    {% endif %}
+    {% for page in pacientes.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+      {% if page %}
+        <a href="{{ url_for('pacientes.lista', pagina=page, q=busqueda, distrito=distrito_seleccionado) }}"
+           class="{{ 'activo' if page == pacientes.page }}">{{ page }}</a>
+      {% else %}
+        <span>…</span>
+      {% endif %}
+    {% endfor %}
+    {% if pacientes.has_next %}
+    <a href="{{ url_for('pacientes.lista', pagina=pacientes.next_num, q=busqueda, distrito=distrito_seleccionado) }}">Siguiente →</a>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,183 @@
+{% extends "base.html" %}
+{% block title %}Estado de Sincronización{% endblock %}
+{% block topbar_title %}Panel de Sincronización{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1>🔄 Panel de Sincronización</h1>
+        <div class="subtitulo">Estado del sistema de sync entre instalaciones y servidor central</div>
+    </div>
+    <div style="display:flex;gap:8px;">
+        {% if sync_habilitado %}
+        <button onclick="forzarSync(this)" class="btn btn-secundario">▶ Sync Ahora</button>
+        {% endif %}
+        <button onclick="location.reload()" class="btn btn-secundario">↺ Actualizar</button>
+    </div>
+</div>
+
+<!-- Configuración -->
+<div class="card" style="border-left:4px solid {{ 'var(--verde)' if sync_habilitado else 'var(--amarillo)' }};">
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div>
+            <strong>Estado del Servicio:</strong>
+            <span class="badge {{ 'badge-verde' if sync_habilitado else 'badge-naranja' }}" style="margin-left:8px;">
+                {{ '✓ Habilitado' if sync_habilitado else '⏸ Deshabilitado' }}
+            </span>
+            {% if estado and estado.activo %}
+            <span class="badge badge-verde" style="margin-left:6px;">Scheduler Activo</span>
+            {% endif %}
+        </div>
+        <div style="font-size:13px;color:#666;">
+            Servidor central: <code style="background:var(--gris-fondo);padding:2px 8px;border-radius:4px;">
+                {{ servidor_central or 'No configurado' }}
+            </code>
+        </div>
+    </div>
+
+    {% if estado and estado.jobs %}
+    <div style="margin-top:12px;display:flex;gap:20px;flex-wrap:wrap;">
+        {% for job in estado.jobs %}
+        <div style="font-size:12px;color:#555;">
+            <strong>{{ job.nombre }}</strong><br>
+            Próxima ejecución: {{ job.proxima_ejecucion[:16].replace('T', ' ') if job.proxima_ejecucion else '—' }}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+
+<!-- Estadísticas -->
+<div class="grid-4" style="margin-bottom:20px;">
+    <div class="stat-card">
+        <span class="stat-icon">⏳</span>
+        <div class="stat-label">Pendientes</div>
+        <div class="stat-valor" style="color:var(--amarillo);">{{ stats_estado.get('pendiente', 0) }}</div>
+    </div>
+    <div class="stat-card">
+        <span class="stat-icon">✓</span>
+        <div class="stat-label">Enviados</div>
+        <div class="stat-valor">{{ stats_estado.get('enviado', 0) }}</div>
+    </div>
+    <div class="stat-card">
+        <span class="stat-icon">✕</span>
+        <div class="stat-label">Errores</div>
+        <div class="stat-valor" style="color:var(--rojo);">{{ stats_estado.get('error', 0) }}</div>
+    </div>
+    <div class="stat-card">
+        <span class="stat-icon">⚡</span>
+        <div class="stat-label">Conflictos</div>
+        <div class="stat-valor" style="color:var(--naranja);">{{ stats_estado.get('conflicto', 0) }}</div>
+    </div>
+</div>
+
+<!-- Conflictos pendientes de resolución -->
+{% set conflictos = ultimos | selectattr('estado', 'equalto', 'conflicto') | list %}
+{% if conflictos %}
+<div class="card" style="border-left:4px solid var(--naranja);">
+    <div class="card-header">
+        <span class="card-title" style="color:var(--naranja);">⚡ Conflictos de DNI — Requieren Atención Manual</span>
+    </div>
+    <p style="font-size:13px;color:#666;margin-bottom:12px;">
+        Estos registros tienen conflictos de número de documento con pacientes ya existentes en el servidor central.
+    </p>
+    <div class="tabla-wrapper">
+        <table>
+            <thead><tr><th>UUID</th><th>Tipo</th><th>Error</th><th>Fecha</th><th>Acción</th></tr></thead>
+            <tbody>
+                {% for r in conflictos %}
+                <tr>
+                    <td><code style="font-size:11px;">{{ r.uuid_registro[:16] }}...</code></td>
+                    <td><span class="badge badge-azul">{{ r.tipo_dato }}</span></td>
+                    <td style="font-size:12px;color:#c0392b;">{{ r.error_mensaje[:80] if r.error_mensaje else '—' }}</td>
+                    <td style="font-size:12px;">{{ r.timestamp.strftime('%d/%m %H:%M') }}</td>
+                    <td>
+                        <form method="POST" action="{{ url_for('transferencia.resolver_conflicto', sync_id=r.id) }}"
+                              style="display:inline;">
+                            <input type="hidden" name="accion" value="reintentar">
+                            <button type="submit" class="btn btn-sm btn-secundario">↺ Reintentar</button>
+                        </form>
+                        <form method="POST" action="{{ url_for('transferencia.resolver_conflicto', sync_id=r.id) }}"
+                              style="display:inline;margin-left:4px;">
+                            <input type="hidden" name="accion" value="omitir">
+                            <button type="submit" class="btn btn-sm btn-secundario">✓ Omitir</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<!-- Log de sync reciente -->
+<div class="card">
+    <div class="card-header">
+        <span class="card-title">📋 Registro de Sincronización Reciente</span>
+    </div>
+    <div class="tabla-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>Fecha/Hora</th>
+                    <th>Tipo</th>
+                    <th>UUID</th>
+                    <th>Acción</th>
+                    <th>Estado</th>
+                    <th>Intentos</th>
+                    <th>Detalle</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for r in ultimos %}
+                <tr>
+                    <td style="font-size:11px;font-family:'IBM Plex Mono',monospace;white-space:nowrap;">
+                        {{ r.timestamp.strftime('%d/%m/%Y %H:%M') }}
+                    </td>
+                    <td><span class="badge badge-gris">{{ r.tipo_dato }}</span></td>
+                    <td style="font-size:11px;font-family:'IBM Plex Mono',monospace;color:#888;">
+                        {{ r.uuid_registro[:18] }}...
+                    </td>
+                    <td style="font-size:12px;">{{ r.accion }}</td>
+                    <td>
+                        <span class="badge
+                            {% if r.estado == 'enviado' %}badge-verde
+                            {% elif r.estado == 'error' %}badge-rojo
+                            {% elif r.estado == 'conflicto' %}badge-naranja
+                            {% elif r.estado == 'pendiente' %}badge-azul
+                            {% else %}badge-gris{% endif %}">
+                            {{ r.estado }}
+                        </span>
+                    </td>
+                    <td style="text-align:center;font-family:'IBM Plex Mono',monospace;">{{ r.intentos }}</td>
+                    <td style="font-size:11px;color:#888;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                        {{ r.error_mensaje or '—' }}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+async function forzarSync(btn) {
+    btn.disabled = true;
+    btn.textContent = '⏳ Ejecutando...';
+    try {
+        const res = await fetch('{{ url_for("transferencia.forzar_sync") }}', { method: 'POST' });
+        const d = await res.json();
+        if (d.ok) {
+            btn.textContent = '✓ Iniciado';
+            setTimeout(() => { btn.disabled = false; btn.textContent = '▶ Sync Ahora'; }, 4000);
+        }
+    } catch(e) {
+        btn.textContent = 'Error de conexión';
+        btn.disabled = false;
+    }
+}
+</script>
+{% endblock %}

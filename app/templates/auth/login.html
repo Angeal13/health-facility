@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Iniciar Sesión{% endblock %}
+
+{% block content %}
+<div style="min-height: 100vh; display: flex; align-items: center; justify-content: center; background: var(--primary-bg); background-image: radial-gradient(var(--primary-light) 0.5px, transparent 0.5px); background-size: 24px 24px; padding: 20px;">
+    <div class="card" style="width: 100%; max-width: 440px; padding: 48px; border-radius: 24px; box-shadow: 0 25px 50px -12px rgba(15, 118, 110, 0.15);">
+        <div style="text-align: center; margin-bottom: 40px;">
+            <div style="font-size: 56px; margin-bottom: 16px; filter: drop-shadow(0 4px 6px rgba(15, 118, 110, 0.2));">🏥</div>
+            <h1 style="font-size: 32px; font-weight: 800; color: var(--primary); letter-spacing: -1px;">Bioko Health</h1>
+            <p style="font-size: 14px; color: var(--text-muted); font-weight: 500; margin-top: 8px;">Portal Sanitario Nacional</p>
+        </div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% for category, message in messages %}
+                <div class="alerta alerta-{{ category }}" style="margin-bottom: 24px;">
+                    <span class="ico">{% if category == 'danger' %}🚫{% else %}ℹ️{% endif %}</span>
+                    {{ message }}
+                </div>
+            {% endfor %}
+        {% endwith %}
+
+        <form method="POST" action="{{ url_for('auth.login') }}">
+            <div class="form-grupo">
+                <label>Usuario del Sistema</label>
+                <div style="position: relative;">
+                    <span style="position: absolute; left: 14px; top: 50%; transform: translateY(-50%); opacity: 0.4;">👤</span>
+                    <input type="text" name="nombre_usuario" placeholder="Ej: dr.obiang"
+                           style="padding-left: 44px;" required autofocus autocomplete="username">
+                </div>
+            </div>
+            
+            <div class="form-grupo">
+                <label>Contraseña</label>
+                <div style="position: relative;">
+                    <span style="position: absolute; left: 14px; top: 50%; transform: translateY(-50%); opacity: 0.4;">🔑</span>
+                    <input type="password" name="password" placeholder="••••••••"
+                           style="padding-left: 44px;" required autocomplete="current-password">
+                </div>
+            </div>
+
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 32px; padding: 12px; background: var(--bg-main); border-radius: 10px;">
+                <input type="checkbox" name="recordar" id="recordar" style="width: 20px; height: 20px; cursor: pointer; accent-color: var(--primary);">
+                <label for="recordar" style="font-size: 14px; color: var(--text-dark); font-weight: 500; margin: 0; cursor: pointer;">
+                    Mantener sesión activa
+                </label>
+            </div>
+
+            <button type="submit" class="btn btn-primario" style="width: 100%; padding: 14px; font-size: 16px; border-radius: 12px;">
+                Acceder al Sistema
+            </button>
+        </form>
+
+        <div style="margin-top: 40px; text-align: center; border-top: 1px solid var(--border); padding-top: 24px;">
+            <p style="font-size: 12px; color: var(--text-muted); line-height: 1.6;">
+                Uso exclusivo para personal del <strong>Ministerio de Sanidad</strong>.<br>
+                Nodo: {{ facility_name }}
+            </p>
+        </div>
+    </div>
+</div>
+{% endblock %}

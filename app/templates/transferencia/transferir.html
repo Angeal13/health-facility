@@ -1,0 +1,190 @@
+{% extends "base.html" %}
+{% block title %}Transferir Paciente{% endblock %}
+{% block topbar_title %}Transferencia de Paciente{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1>🔄 Transferencia Inmediata</h1>
+        <div class="subtitulo">Enviar expediente completo al servidor central</div>
+    </div>
+    <a href="{{ url_for('pacientes.ver', id=paciente.id) }}" class="btn btn-secundario">← Volver</a>
+</div>
+
+<!-- Datos del paciente -->
+<div class="card" style="border-left: 4px solid var(--verde);">
+    <div style="display:flex;align-items:center;gap:20px;">
+        <div style="font-size:48px;">👤</div>
+        <div>
+            <div style="font-size:20px;font-weight:700;">{{ paciente.nombre_completo }}</div>
+            <div style="font-size:13px;color:#666;margin-top:4px;">
+                N° Historia: <strong>{{ paciente.numero_historia }}</strong>
+                {% if paciente.dni %} · DNI: {{ paciente.dni }}{% endif %}
+                · {{ paciente.edad }} años · {{ 'Masculino' if paciente.sexo == 'M' else 'Femenino' }}
+            </div>
+            <div style="margin-top:8px;display:flex;gap:8px;">
+                <span class="badge {{ 'badge-verde' if paciente.sincronizado else 'badge-naranja' }}">
+                    {{ '✓ Sincronizado' if paciente.sincronizado else '⏳ Pendiente de sync' }}
+                </span>
+                <span class="badge badge-azul" id="badge-consultas">
+                    Cargando consultas...
+                </span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Formulario de transferencia -->
+<div class="grid-2">
+    <div class="card">
+        <div class="card-header">
+            <span class="card-title">📤 Datos de la Transferencia</span>
+        </div>
+
+        <form method="POST" action="{{ url_for('transferencia.transferir_paciente', paciente_id=paciente.id) }}"
+              id="form-transferencia">
+
+            <div class="form-grupo">
+                <label>Instalación Destino</label>
+                <select name="instalacion_destino" required>
+                    <option value="">— Servidor central (predeterminado) —</option>
+                    {% for inst in instalaciones %}
+                    <option value="{{ inst.id }}">{{ inst.nombre }} ({{ inst.tipo | title }})</option>
+                    {% endfor %}
+                </select>
+                <small style="color:#888;font-size:11px;margin-top:4px;display:block;">
+                    Si no se selecciona, se enviará al servidor central configurado.
+                </small>
+            </div>
+
+            <div class="form-grupo">
+                <label>Motivo de la Transferencia</label>
+                <textarea name="motivo" rows="3"
+                          placeholder="Ej: Referido para cirugía, traslado por especialidad, actualización urgente..."></textarea>
+            </div>
+
+            <div style="background:var(--verde-palido);border-radius:8px;padding:14px;margin-bottom:20px;">
+                <strong style="font-size:13px;color:var(--verde);">📦 Qué se va a transferir:</strong>
+                <ul style="font-size:13px;margin-top:8px;padding-left:20px;color:#444;line-height:1.8;">
+                    <li>Datos completos del paciente (datos personales, clínicos)</li>
+                    <li>Historial completo de consultas</li>
+                    <li>Diagnósticos, prescripciones y exámenes de laboratorio</li>
+                    <li>Registro de vacunación</li>
+                </ul>
+            </div>
+
+            <div style="background:#fef3e2;border-radius:8px;padding:12px;margin-bottom:20px;font-size:13px;color:#7a5000;">
+                ⚠️ Esta acción enviará el expediente completo al servidor de destino de forma inmediata.
+                Si el servidor no está disponible, se registrará para el próximo sync automático.
+            </div>
+
+            <div style="display:flex;gap:10px;">
+                <button type="submit" class="btn btn-primario" id="btn-transferir">
+                    📤 Transferir Ahora
+                </button>
+                <a href="{{ url_for('pacientes.ver', id=paciente.id) }}" class="btn btn-secundario">
+                    Cancelar
+                </a>
+            </div>
+        </form>
+    </div>
+
+    <!-- Estado de sync actual -->
+    <div class="card">
+        <div class="card-header">
+            <span class="card-title">📊 Estado de Sincronización</span>
+        </div>
+
+        <div id="estado-sync-detalle">
+            <div style="text-align:center;padding:20px;color:#888;">Cargando...</div>
+        </div>
+
+        <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--gris-borde);">
+            <div class="card-title" style="margin-bottom:10px;">⏱ Próximo Sync Automático</div>
+            <div style="font-size:13px;color:#555;">
+                El sistema sincroniza automáticamente todos los días a las <strong>02:00 AM</strong>
+                (hora de Malabo, Africa/Malabo).
+            </div>
+            {% if current_user.es_admin %}
+            <div style="margin-top:12px;">
+                <button onclick="forzarSync()" class="btn btn-sm btn-secundario">
+                    ▶ Ejecutar Sync Ahora
+                </button>
+                <a href="{{ url_for('transferencia.estado_sync') }}" class="btn btn-sm btn-secundario">
+                    📋 Panel de Sync
+                </a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Cargar estado de sync del paciente
+async function cargarEstado() {
+    try {
+        const res = await fetch('{{ url_for("transferencia.estado_transferencia_ajax", paciente_id=paciente.id) }}');
+        const d = await res.json();
+
+        document.getElementById('badge-consultas').textContent =
+            `${d.consultas_total} consulta${d.consultas_total !== 1 ? 's' : ''}`;
+
+        const contenedor = document.getElementById('estado-sync-detalle');
+        contenedor.innerHTML = `
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+            <div class="stat-card" style="text-align:center;padding:14px;">
+                <div class="stat-label">Expediente</div>
+                <div style="font-size:18px;font-weight:700;color:${d.paciente_sincronizado ? 'var(--verde)' : 'var(--naranja)'};">
+                    ${d.paciente_sincronizado ? '✓ Sync' : '⏳ Pendiente'}
+                </div>
+            </div>
+            <div class="stat-card" style="text-align:center;padding:14px;">
+                <div class="stat-label">Consultas Sync</div>
+                <div style="font-size:18px;font-weight:700;color:var(--verde);font-family:'IBM Plex Mono',monospace;">
+                    ${d.consultas_sincronizadas}/${d.consultas_total}
+                </div>
+            </div>
+        </div>
+        ${d.consultas_pendientes > 0 ? `
+        <div style="background:#fef3e2;border-radius:6px;padding:10px 12px;font-size:13px;color:#7a5000;">
+            <strong>${d.consultas_pendientes} consulta${d.consultas_pendientes > 1 ? 's' : ''}</strong>
+            sin sincronizar. La transferencia las enviará todas.
+        </div>` : `
+        <div style="background:var(--verde-palido);border-radius:6px;padding:10px 12px;font-size:13px;color:var(--verde);">
+            ✓ Todo el expediente está sincronizado con el servidor central.
+        </div>`}`;
+    } catch(e) {
+        document.getElementById('estado-sync-detalle').innerHTML =
+            '<div style="color:#888;font-size:13px;">No se pudo cargar el estado.</div>';
+    }
+}
+
+async function forzarSync() {
+    const btn = event.target;
+    btn.disabled = true;
+    btn.textContent = 'Ejecutando...';
+    try {
+        const res = await fetch('{{ url_for("transferencia.forzar_sync") }}', { method: 'POST' });
+        const d = await res.json();
+        if (d.ok) {
+            btn.textContent = '✓ Iniciado';
+            setTimeout(() => { btn.disabled = false; btn.textContent = '▶ Ejecutar Sync Ahora'; }, 3000);
+        }
+    } catch(e) {
+        btn.textContent = 'Error';
+        btn.disabled = false;
+    }
+}
+
+// Confirmación antes de transferir
+document.getElementById('form-transferencia').addEventListener('submit', function(e) {
+    const btn = document.getElementById('btn-transferir');
+    btn.disabled = true;
+    btn.textContent = '⏳ Transfiriendo...';
+});
+
+cargarEstado();
+</script>
+{% endblock %}

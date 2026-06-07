@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+{% block title %}Nuevo Paciente{% endblock %}
+{% block topbar_title %}Registrar Nuevo Paciente{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>➕ Nuevo Paciente</h1>
+    <div class="subtitulo">Registrar nuevo expediente clínico</div>
+  </div>
+  <a href="{{ url_for('pacientes.lista') }}" class="btn btn-secundario">← Volver</a>
+</div>
+
+<form method="POST" action="{{ url_for('pacientes.nuevo') }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+  <div class="grid-2">
+    <!-- Identificación -->
+    <div class="card">
+      <div class="card-header"><span class="card-title">👤 Identificación</span></div>
+      <div style="padding:16px">
+        <div class="grid-2">
+          <div class="form-grupo">
+            <label>Nombres *</label>
+            <input type="text" name="nombres" required placeholder="Nombres del paciente" autofocus>
+          </div>
+          <div class="form-grupo">
+            <label>Apellidos *</label>
+            <input type="text" name="apellidos" required placeholder="Apellidos del paciente">
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="form-grupo">
+            <label>DNI / Cédula</label>
+            <input type="text" name="dni" placeholder="GE-XXXXXXX">
+          </div>
+          <div class="form-grupo">
+            <label>Fecha de Nacimiento *</label>
+            <input type="date" name="fecha_nacimiento" required>
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="form-grupo">
+            <label>Sexo *</label>
+            <select name="sexo" required>
+              <option value="">— Seleccionar —</option>
+              <option value="F">Femenino</option>
+              <option value="M">Masculino</option>
+            </select>
+          </div>
+          <div class="form-grupo">
+            <label>Grupo Sanguíneo</label>
+            <select name="grupo_sanguineo">
+              <option value="">— Desconocido —</option>
+              {% for g in ['A+','A-','B+','B-','O+','O-','AB+','AB-'] %}
+              <option value="{{ g }}">{{ g }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+        <div class="form-grupo">
+          <label>Teléfono</label>
+          <input type="text" name="telefono" placeholder="+240 222 …">
+        </div>
+      </div>
+    </div>
+
+    <!-- Ubicación -->
+    <div class="card">
+      <div class="card-header"><span class="card-title">📍 Ubicación</span></div>
+      <div style="padding:16px">
+        <div class="form-grupo">
+          <label>Distrito</label>
+          <select name="distrito_id" id="sel-distrito" onchange="cargarBarrios(this.value)">
+            <option value="">— Seleccionar distrito —</option>
+            {% for d in distritos %}
+            <option value="{{ d.id }}">{{ d.nombre }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-grupo">
+          <label>Barrio</label>
+          <select name="barrio_id" id="sel-barrio">
+            <option value="">— Seleccionar barrio —</option>
+            {% for b in barrios %}
+            <option value="{{ b.id }}" data-distrito="{{ b.distrito_id }}">{{ b.nombre }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-grupo">
+          <label>Dirección</label>
+          <input type="text" name="direccion" placeholder="Calle, número, referencia…">
+        </div>
+        <div class="grid-2">
+          <div class="form-grupo">
+            <label>Ocupación</label>
+            <input type="text" name="ocupacion" placeholder="Profesión u ocupación">
+          </div>
+          <div class="form-grupo">
+            <label>Etnia</label>
+            <input type="text" name="etnia" placeholder="Opcional">
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Antecedentes clínicos -->
+  <div class="card">
+    <div class="card-header"><span class="card-title">🩺 Antecedentes Clínicos</span></div>
+    <div style="padding:16px">
+      <div class="grid-2">
+        <div class="form-grupo">
+          <label>Alergias conocidas</label>
+          <textarea name="alergias" rows="3" placeholder="Medicamentos, alimentos, sustancias a las que es alérgico…"></textarea>
+        </div>
+        <div class="form-grupo">
+          <label>Condiciones crónicas</label>
+          <textarea name="condiciones_cronicas" rows="3" placeholder="Diabetes, hipertensión, asma, VIH…"></textarea>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:4px">
+    <a href="{{ url_for('pacientes.lista') }}" class="btn btn-secundario">Cancelar</a>
+    <button type="submit" class="btn btn-primario">💾 Registrar Paciente</button>
+  </div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const allBarrios = Array.from(document.querySelectorAll('#sel-barrio option'));
+function cargarBarrios(distritoId) {
+  const sel = document.getElementById('sel-barrio');
+  sel.innerHTML = '<option value="">— Seleccionar barrio —</option>';
+  if (!distritoId) return;
+  allBarrios.forEach(opt => {
+    if (opt.dataset.distrito === distritoId) {
+      sel.appendChild(opt.cloneNode(true));
+    }
+  });
+}
+</script>
+{% endblock %}

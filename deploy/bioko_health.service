@@ -1,0 +1,66 @@
+# ╔══════════════════════════════════════════════╗
+# ║  BIOKO HEALTH — Servicio systemd              ║
+# ║  Guardar en: /etc/systemd/system/             ║
+# ║              bioko_health.service             ║
+# ╚══════════════════════════════════════════════╝
+#
+# Comandos de gestión:
+#   sudo systemctl enable bioko_health
+#   sudo systemctl start  bioko_health
+#   sudo systemctl status bioko_health
+#   sudo systemctl restart bioko_health
+#   sudo journalctl -u bioko_health -f
+
+[Unit]
+Description=Bioko Health — Sistema de Salud Guinea Ecuatorial
+Documentation=https://github.com/bioko-health/sistema
+After=network.target mysqld.service
+Wants=mysqld.service
+
+[Service]
+Type=notify
+
+# Usuario y grupo (no ejecutar como root)
+User=bioko
+Group=bioko
+
+# Directorio de trabajo
+WorkingDirectory=/opt/bioko_health
+
+# Cargar variables de entorno
+EnvironmentFile=/opt/bioko_health/.env
+
+# Crear directorios necesarios antes de arrancar
+ExecStartPre=/bin/mkdir -p /run/bioko_health
+ExecStartPre=/bin/mkdir -p /var/log/bioko_health
+ExecStartPre=/bin/chown bioko:bioko /run/bioko_health /var/log/bioko_health
+ExecStartPre=/bin/mkdir -p /opt/bioko_health/uploads /opt/bioko_health/reports
+
+# Comando de inicio
+ExecStart=/opt/bioko_health/venv/bin/gunicorn \
+    --config /opt/bioko_health/gunicorn.conf.py \
+    "app:create_app('production')"
+
+# Recarga sin tiempo de inactividad
+ExecReload=/bin/kill -s HUP $MAINPID
+
+# Timeout de parada
+TimeoutStopSec=30
+KillMode=mixed
+KillSignal=SIGTERM
+
+# Reinicio automático en fallo
+Restart=on-failure
+RestartSec=10
+StartLimitInterval=60
+StartLimitBurst=3
+
+# Hardening de seguridad
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ReadWritePaths=/opt/bioko_health /var/log/bioko_health /run/bioko_health
+ProtectHome=yes
+
+[Install]
+WantedBy=multi-user.target

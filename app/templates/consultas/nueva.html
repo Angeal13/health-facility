@@ -1,0 +1,371 @@
+{% extends "base.html" %}
+{% block title %}Nueva Consulta{% endblock %}
+{% block topbar_title %}Nueva Consulta{% endblock %}
+
+{% block extra_css %}
+<style>
+.seleccionados { display:flex;flex-wrap:wrap;gap:6px;min-height:36px;padding:6px;border:1px solid var(--gris-borde);border-radius:6px;background:white; }
+.tag-item { display:flex;align-items:center;gap:6px;background:var(--verde-palido);color:var(--verde);border-radius:14px;padding:3px 10px;font-size:12px;font-weight:500; }
+.tag-item button { background:none;border:none;cursor:pointer;color:var(--verde);font-size:14px;padding:0;line-height:1; }
+.sugerencias-lista { position:absolute;top:100%;left:0;right:0;background:white;border:1px solid var(--gris-borde);border-radius:6px;max-height:200px;overflow-y:auto;z-index:100;display:none;box-shadow:0 4px 12px rgba(0,0,0,0.1); }
+.sugerencias-lista div { padding:9px 12px;cursor:pointer;font-size:13px; }
+.sugerencias-lista div:hover { background:var(--verde-palido); }
+.seccion { background:var(--gris-fondo);border-radius:8px;padding:16px;margin-bottom:16px; }
+.seccion h3 { font-size:13px;font-weight:600;color:var(--verde);margin-bottom:12px;text-transform:uppercase;letter-spacing:0.5px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1>🩺 Nueva Consulta</h1>
+        {% if paciente %}
+        <div class="subtitulo">Paciente: <strong>{{ paciente.nombre_completo }}</strong> — {{ paciente.numero_historia }}</div>
+        {% endif %}
+    </div>
+    <a href="{{ url_for('pacientes.lista') }}" class="btn btn-secundario">← Volver</a>
+</div>
+
+<form method="POST" action="{{ url_for('consultas.nueva') }}" id="form-consulta">
+
+    {% if not paciente %}
+    <div class="card">
+        <div class="card-header"><span class="card-title">👥 Seleccionar Paciente</span></div>
+        <div class="form-grupo" style="position:relative;">
+            <label>Buscar Paciente *</label>
+            <input type="text" id="buscar-paciente" placeholder="Nombre, DNI o N° historia..."
+                   autocomplete="off" required>
+            <input type="hidden" name="paciente_id" id="paciente_id_hidden" required>
+            <div class="sugerencias-lista" id="lista-pacientes"></div>
+        </div>
+        <div id="paciente-seleccionado" style="display:none;background:var(--verde-palido);border-radius:6px;padding:10px 14px;font-size:13px;"></div>
+    </div>
+    {% else %}
+    <input type="hidden" name="paciente_id" value="{{ paciente.id }}">
+    {% endif %}
+
+    <!-- Tipo y Signos vitales -->
+    <div class="grid-2">
+        <div class="card">
+            <div class="card-header"><span class="card-title">📋 Datos de la Consulta</span></div>
+            <div class="grid-2">
+                <div class="form-grupo">
+                    <label>Tipo de Consulta *</label>
+                    <select name="tipo" required>
+                        <option value="primera_vez">Primera vez</option>
+                        <option value="seguimiento">Seguimiento</option>
+                        <option value="urgencia">Urgencia</option>
+                        <option value="referido_entrante">Referido entrante</option>
+                        <option value="referido_saliente">Referido saliente</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-grupo">
+                <label>Motivo de Consulta *</label>
+                <textarea name="motivo_consulta" required placeholder="Describa el motivo principal de la consulta..."></textarea>
+            </div>
+            <div class="form-grupo">
+                <label>Historia de la Enfermedad Actual</label>
+                <textarea name="historia_enfermedad" placeholder="Inicio, evolución, tratamientos previos..."></textarea>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header"><span class="card-title">❤️ Signos Vitales</span></div>
+            <div class="grid-2">
+                <div class="form-grupo">
+                    <label>Temperatura (°C)</label>
+                    <input type="number" name="temperatura" step="0.1" min="30" max="45" placeholder="36.6">
+                </div>
+                <div class="form-grupo">
+                    <label>SpO₂ (%)</label>
+                    <input type="number" name="saturacion_oxigeno" step="0.1" min="70" max="100" placeholder="98">
+                </div>
+                <div class="form-grupo">
+                    <label>P.A. Sistólica</label>
+                    <input type="number" name="presion_sistolica" min="60" max="250" placeholder="120">
+                </div>
+                <div class="form-grupo">
+                    <label>P.A. Diastólica</label>
+                    <input type="number" name="presion_diastolica" min="40" max="150" placeholder="80">
+                </div>
+                <div class="form-grupo">
+                    <label>F. Cardíaca (lpm)</label>
+                    <input type="number" name="frecuencia_cardiaca" min="30" max="250" placeholder="75">
+                </div>
+                <div class="form-grupo">
+                    <label>F. Respiratoria</label>
+                    <input type="number" name="frecuencia_respiratoria" min="5" max="60" placeholder="16">
+                </div>
+                <div class="form-grupo">
+                    <label>Peso (kg)</label>
+                    <input type="number" name="peso_kg" step="0.1" min="0.5" max="300" placeholder="70">
+                </div>
+                <div class="form-grupo">
+                    <label>Talla (cm)</label>
+                    <input type="number" name="talla_cm" step="0.1" min="20" max="250" placeholder="170">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Síntomas -->
+    <div class="card">
+        <div class="card-header"><span class="card-title">🤒 Síntomas</span></div>
+        <div class="form-grupo" style="position:relative;">
+            <label>Buscar y agregar síntomas</label>
+            <input type="text" id="buscar-sintoma" placeholder="Escriba el síntoma..." autocomplete="off">
+            <div class="sugerencias-lista" id="lista-sintomas">
+                {% for s in sintomas %}
+                <div data-id="{{ s.id }}" data-nombre="{{ s.nombre_es }}" data-cat="{{ s.categoria or '' }}">
+                    {{ s.nombre_es }}
+                    {% if s.categoria %}<small style="color:#888"> — {{ s.categoria }}</small>{% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        <div class="seleccionados" id="sintomas-seleccionados">
+            <span style="color:#aaa;font-size:12px;align-self:center;">Sin síntomas agregados</span>
+        </div>
+        <div id="sintomas-inputs"></div>
+    </div>
+
+    <!-- Diagnósticos -->
+    <div class="card">
+        <div class="card-header"><span class="card-title">🔬 Diagnósticos (ICD-10)</span></div>
+        <div class="form-grupo" style="position:relative;">
+            <label>Buscar diagnóstico</label>
+            <input type="text" id="buscar-enfermedad" placeholder="Nombre o código ICD-10..." autocomplete="off">
+            <div class="sugerencias-lista" id="lista-enfermedades"></div>
+        </div>
+        <div class="seleccionados" id="enfermedades-seleccionadas">
+            <span style="color:#aaa;font-size:12px;align-self:center;">Sin diagnósticos agregados</span>
+        </div>
+        <div id="enfermedades-inputs"></div>
+    </div>
+
+    <!-- Examen físico y plan -->
+    <div class="grid-2">
+        <div class="card">
+            <div class="card-header"><span class="card-title">🔍 Examen Físico</span></div>
+            <div class="form-grupo">
+                <textarea name="examen_fisico" style="min-height:120px;" placeholder="Hallazgos del examen físico..."></textarea>
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-header"><span class="card-title">📝 Plan de Tratamiento</span></div>
+            <div class="form-grupo">
+                <textarea name="plan_tratamiento" style="min-height:120px;" placeholder="Plan terapéutico, indicaciones..."></textarea>
+            </div>
+        </div>
+    </div>
+
+    <!-- Prescripciones -->
+    <div class="card">
+        <div class="card-header">
+            <span class="card-title">💊 Prescripciones</span>
+            <button type="button" class="btn btn-sm btn-secundario" onclick="agregarRx()">+ Agregar</button>
+        </div>
+        <div id="prescripciones-container">
+            <p style="color:#aaa;font-size:13px;" id="rx-vacio">Sin medicamentos prescritos aún.</p>
+        </div>
+    </div>
+
+    <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:8px;">
+        <a href="{{ url_for('pacientes.lista') }}" class="btn btn-secundario">Cancelar</a>
+        <button type="submit" class="btn btn-primario">💾 Guardar Consulta</button>
+    </div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// ── Búsqueda de paciente ──
+const inputPaciente = document.getElementById('buscar-paciente');
+const listaPacientes = document.getElementById('lista-pacientes');
+const pacienteIdHidden = document.getElementById('paciente_id_hidden');
+const pacienteInfo = document.getElementById('paciente-seleccionado');
+
+if (inputPaciente) {
+    let timer;
+    inputPaciente.addEventListener('input', function() {
+        clearTimeout(timer);
+        const q = this.value.trim();
+        if (q.length < 2) { listaPacientes.style.display = 'none'; return; }
+        timer = setTimeout(async () => {
+            const res = await fetch(`/pacientes/buscar-ajax?q=${encodeURIComponent(q)}`);
+            const datos = await res.json();
+            listaPacientes.innerHTML = '';
+            datos.forEach(p => {
+                const div = document.createElement('div');
+                div.textContent = `${p.nombre} — ${p.numero_historia} (${p.edad}a ${p.sexo})`;
+                div.addEventListener('click', () => {
+                    pacienteIdHidden.value = p.id;
+                    inputPaciente.value = p.nombre;
+                    pacienteInfo.style.display = 'block';
+                    pacienteInfo.innerHTML = `<strong>✓ ${p.nombre}</strong> | ${p.numero_historia} | ${p.edad} años | ${p.sexo === 'M' ? 'Masculino' : 'Femenino'}${p.dni ? ' | DNI: '+p.dni : ''}`;
+                    listaPacientes.style.display = 'none';
+                });
+                listaPacientes.appendChild(div);
+            });
+            listaPacientes.style.display = datos.length ? 'block' : 'none';
+        }, 250);
+    });
+}
+
+// ── Síntomas ──
+const sintomasSeleccionados = new Map();
+const inputSintoma = document.getElementById('buscar-sintoma');
+const listaSintomas = document.getElementById('lista-sintomas');
+const sintomasContainer = document.getElementById('sintomas-seleccionados');
+const sintomasInputs = document.getElementById('sintomas-inputs');
+
+const todosLosSintomas = Array.from(listaSintomas.querySelectorAll('div'));
+
+inputSintoma.addEventListener('input', function() {
+    const q = this.value.toLowerCase();
+    todosLosSintomas.forEach(d => {
+        d.style.display = d.dataset.nombre.toLowerCase().includes(q) ? '' : 'none';
+    });
+    listaSintomas.style.display = 'block';
+});
+
+todosLosSintomas.forEach(d => {
+    d.addEventListener('click', () => agregarSintoma(d.dataset.id, d.dataset.nombre));
+});
+
+function agregarSintoma(id, nombre) {
+    if (sintomasSeleccionados.has(id)) return;
+    sintomasSeleccionados.set(id, nombre);
+    renderSintomas();
+    inputSintoma.value = '';
+    listaSintomas.style.display = 'none';
+}
+
+function quitarSintoma(id) {
+    sintomasSeleccionados.delete(id);
+    renderSintomas();
+}
+
+function renderSintomas() {
+    sintomasContainer.innerHTML = '';
+    sintomasInputs.innerHTML = '';
+    if (!sintomasSeleccionados.size) {
+        sintomasContainer.innerHTML = '<span style="color:#aaa;font-size:12px;align-self:center;">Sin síntomas agregados</span>';
+        return;
+    }
+    sintomasSeleccionados.forEach((nombre, id) => {
+        const tag = document.createElement('div');
+        tag.className = 'tag-item';
+        tag.innerHTML = `${nombre} <button type="button" onclick="quitarSintoma('${id}')">×</button>`;
+        sintomasContainer.appendChild(tag);
+        sintomasInputs.innerHTML += `<input type="hidden" name="sintoma_ids[]" value="${id}">`;
+    });
+}
+
+// ── Diagnósticos ──
+const enfermedadesSeleccionadas = new Map();
+const inputEnf = document.getElementById('buscar-enfermedad');
+const listaEnf = document.getElementById('lista-enfermedades');
+const enfermedadesContainer = document.getElementById('enfermedades-seleccionadas');
+const enfermedadesInputs = document.getElementById('enfermedades-inputs');
+
+let timerEnf;
+inputEnf.addEventListener('input', async function() {
+    clearTimeout(timerEnf);
+    const q = this.value.trim();
+    if (q.length < 2) { listaEnf.style.display = 'none'; return; }
+    timerEnf = setTimeout(async () => {
+        const res = await fetch(`/consultas/buscar-enfermedad?q=${encodeURIComponent(q)}`);
+        const datos = await res.json();
+        listaEnf.innerHTML = '';
+        datos.forEach(e => {
+            const div = document.createElement('div');
+            div.innerHTML = `<strong>${e.codigo}</strong> ${e.nombre}${e.notificable ? ' <span style="color:#c0392b;font-size:10px;">●NOTIF.</span>' : ''}`;
+            div.addEventListener('click', () => agregarEnfermedad(e.id, e.codigo, e.nombre));
+            listaEnf.appendChild(div);
+        });
+        listaEnf.style.display = datos.length ? 'block' : 'none';
+    }, 250);
+});
+
+function agregarEnfermedad(id, codigo, nombre) {
+    if (enfermedadesSeleccionadas.has(String(id))) return;
+    enfermedadesSeleccionadas.set(String(id), {codigo, nombre});
+    renderEnfermedades();
+    inputEnf.value = '';
+    listaEnf.style.display = 'none';
+}
+
+function quitarEnfermedad(id) {
+    enfermedadesSeleccionadas.delete(String(id));
+    renderEnfermedades();
+}
+
+function renderEnfermedades() {
+    enfermedadesContainer.innerHTML = '';
+    enfermedadesInputs.innerHTML = '';
+    if (!enfermedadesSeleccionadas.size) {
+        enfermedadesContainer.innerHTML = '<span style="color:#aaa;font-size:12px;align-self:center;">Sin diagnósticos agregados</span>';
+        return;
+    }
+    enfermedadesSeleccionadas.forEach((e, id) => {
+        const tag = document.createElement('div');
+        tag.className = 'tag-item';
+        tag.innerHTML = `<strong>${e.codigo}</strong> ${e.nombre} <button type="button" onclick="quitarEnfermedad('${id}')">×</button>`;
+        enfermedadesContainer.appendChild(tag);
+        enfermedadesInputs.innerHTML += `<input type="hidden" name="enfermedad_ids[]" value="${id}">`;
+    });
+}
+
+// ── Prescripciones ──
+let rxCount = 0;
+function agregarRx() {
+    const c = rxCount++;
+    const vacio = document.getElementById('rx-vacio');
+    if (vacio) vacio.remove();
+
+    const row = document.createElement('div');
+    row.style.cssText = 'background:var(--gris-fondo);border-radius:8px;padding:12px;margin-bottom:10px;';
+    row.innerHTML = `
+    <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr auto;gap:10px;align-items:end;">
+        <div class="form-grupo" style="margin:0">
+            <label>Medicamento</label>
+            <input type="text" name="medicamento[]" placeholder="Nombre del medicamento" required>
+        </div>
+        <div class="form-grupo" style="margin:0">
+            <label>Dosis</label>
+            <input type="text" name="dosis[]" placeholder="500mg">
+        </div>
+        <div class="form-grupo" style="margin:0">
+            <label>Vía</label>
+            <select name="via[]">
+                <option value="oral">Oral</option>
+                <option value="IV">IV</option>
+                <option value="IM">IM</option>
+                <option value="topico">Tópico</option>
+                <option value="sublingual">Sublingual</option>
+            </select>
+        </div>
+        <div class="form-grupo" style="margin:0">
+            <label>Frecuencia</label>
+            <input type="text" name="frecuencia[]" placeholder="Cada 8h">
+        </div>
+        <div class="form-grupo" style="margin:0">
+            <label>Días</label>
+            <input type="number" name="duracion_dias[]" min="1" max="365" placeholder="7">
+        </div>
+        <button type="button" onclick="this.parentElement.parentElement.remove()" 
+                style="background:#fde8e8;border:none;border-radius:6px;padding:8px;cursor:pointer;color:#c0392b;font-size:16px;height:36px;">✕</button>
+    </div>`;
+    document.getElementById('prescripciones-container').appendChild(row);
+}
+
+// Cerrar dropdowns al hacer click fuera
+document.addEventListener('click', (e) => {
+    if (!inputSintoma.contains(e.target)) listaSintomas.style.display = 'none';
+    if (!inputEnf.contains(e.target)) listaEnf.style.display = 'none';
+    if (listaPacientes && !inputPaciente?.contains(e.target)) listaPacientes.style.display = 'none';
+});
+</script>
+{% endblock %}

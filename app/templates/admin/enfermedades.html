@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Catálogo ICD-10{% endblock %}
+{% block topbar_title %}Catálogo de Enfermedades ICD-10{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>📚 Catálogo ICD-10</h1>
+    <div class="subtitulo">{{ enfermedades.total }} enfermedades registradas</div>
+  </div>
+</div>
+
+<div class="card" style="padding:14px 18px;margin-bottom:16px">
+  <form method="GET" style="display:flex;gap:10px;align-items:flex-end">
+    <div class="form-grupo" style="margin:0;flex:1">
+      <label>Buscar</label>
+      <input type="text" name="q" value="{{ q }}" placeholder="Código ICD-10 o nombre…">
+    </div>
+    <button type="submit" class="btn btn-primario">🔍 Buscar</button>
+    {% if q %}<a href="{{ url_for('admin.catalogo_enfermedades') }}" class="btn btn-secundario">✕ Limpiar</a>{% endif %}
+  </form>
+</div>
+
+<div class="card">
+  <div class="tabla-wrapper">
+    <table>
+      <thead>
+        <tr><th>Código</th><th>Diagnóstico</th><th>Categoría</th><th>Notificable</th><th>Tropical</th></tr>
+      </thead>
+      <tbody>
+        {% for e in enfermedades.items %}
+        <tr>
+          <td><span class="badge badge-gris" style="font-family:'IBM Plex Mono',monospace">{{ e.codigo_icd10 }}</span></td>
+          <td><strong>{{ e.nombre_es }}</strong></td>
+          <td style="font-size:12px;color:#888">{{ e.categoria or '—' }}</td>
+          <td>{% if e.es_notificable %}<span class="badge badge-rojo">Sí</span>{% else %}—{% endif %}</td>
+          <td>{% if e.es_tropical %}<span class="badge badge-naranja">Sí</span>{% else %}—{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if enfermedades.pages > 1 %}
+  <div class="paginacion">
+    {% for page in enfermedades.iter_pages(left_edge=1,right_edge=1,left_current=2,right_current=2) %}
+      {% if page %}
+        <a href="{{ url_for('admin.catalogo_enfermedades', pagina=page, q=q) }}"
+           class="{{ 'activo' if page == enfermedades.page }}">{{ page }}</a>
+      {% else %}<span>…</span>{% endif %}
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

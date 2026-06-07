@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}Nueva Instalación{% endblock %}
+{% block topbar_title %}Registrar Instalación{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div><h1>➕ Nueva Instalación</h1></div>
+  <a href="{{ url_for('admin.instalaciones') }}" class="btn btn-secundario">← Volver</a>
+</div>
+
+<div style="max-width:560px">
+  <div class="card">
+    <div class="card-header"><span class="card-title">Datos de la instalación</span></div>
+    <div style="padding:20px">
+      <form method="POST" action="{{ url_for('admin.nueva_instalacion') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="grid-2">
+          <div class="form-grupo">
+            <label>Código único *</label>
+            <input type="text" name="codigo" required placeholder="ej: HMGE-001" style="text-transform:uppercase">
+          </div>
+          <div class="form-grupo">
+            <label>Tipo *</label>
+            <select name="tipo" required>
+              <option value="">— Seleccionar —</option>
+              {% for t in tipos %}
+              <option value="{{ t }}">{{ t | title }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+        <div class="form-grupo">
+          <label>Nombre completo *</label>
+          <input type="text" name="nombre" required placeholder="Hospital General de Malabo">
+        </div>
+        <div class="grid-2">
+          <div class="form-grupo">
+            <label>Distrito</label>
+            <select name="distrito_id">
+              <option value="">— Seleccionar —</option>
+              {% for d in distritos %}
+              <option value="{{ d.id }}">{{ d.nombre }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="form-grupo">
+            <label>Teléfono</label>
+            <input type="text" name="telefono" placeholder="+240 222…">
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="form-grupo">
+            <label>Latitud</label>
+            <input type="number" name="latitud" step="0.0001" placeholder="3.7504">
+          </div>
+          <div class="form-grupo">
+            <label>Longitud</label>
+            <input type="number" name="longitud" step="0.0001" placeholder="8.7371">
+          </div>
+        </div>
+        <button type="submit" class="btn btn-primario" style="width:100%;justify-content:center">
+          💾 Registrar Instalación
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

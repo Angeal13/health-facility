@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Usuarios{% endblock %}
+{% block topbar_title %}Gestión de Usuarios{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div><h1>👤 Usuarios del Sistema</h1></div>
+  <a href="{{ url_for('admin.nuevo_usuario') }}" class="btn btn-primario">➕ Nuevo Usuario</a>
+</div>
+
+<div class="card">
+  <div class="tabla-wrapper">
+    <table>
+      <thead>
+        <tr><th>Usuario</th><th>Nombre</th><th>Rol</th><th>Instalación</th><th>Último acceso</th><th>Estado</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for u in usuarios %}
+        {% set rol_colors = {'superadmin':'badge-rojo','admin':'badge-naranja','medico':'badge-verde','enfermero':'badge-azul','laboratorio':'badge-azul','epidemiologia':'badge-azul','recepcion':'badge-gris'} %}
+        <tr>
+          <td><strong style="font-family:'IBM Plex Mono',monospace;font-size:12px">{{ u.nombre_usuario }}</strong></td>
+          <td>{{ u.nombre_completo }}</td>
+          <td><span class="badge {{ rol_colors.get(u.rol, 'badge-gris') }}">{{ u.rol | title }}</span></td>
+          <td style="font-size:12px">{{ u.instalacion.nombre if u.instalacion else '—' }}</td>
+          <td style="font-size:11px;color:#888">
+            {{ u.ultimo_acceso.strftime('%d/%m/%Y %H:%M') if u.ultimo_acceso else 'Nunca' }}
+          </td>
+          <td>
+            <span class="badge {{ 'badge-verde' if u.activo else 'badge-rojo' }}">
+              {{ 'Activo' if u.activo else 'Inactivo' }}
+            </span>
+          </td>
+          <td>
+            {% if u.id != current_user.id %}
+            <form method="POST" action="{{ url_for('admin.toggle_usuario', id=u.id) }}" style="display:inline">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn btn-sm btn-secundario">
+                {{ '🚫 Desactivar' if u.activo else '✓ Activar' }}
+              </button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,195 @@
+{% extends "base.html" %}
+{% block title %}{{ paciente.nombre_completo }}{% endblock %}
+{% block topbar_title %}Historia Clínica{% endblock %}
+
+{% block content %}
+<div class="page-header" style="margin-bottom: 32px;">
+    <div>
+        <h1 style="font-size: 32px; font-weight: 800; color: var(--primary); letter-spacing: -1px;">{{ paciente.nombre_completo }}</h1>
+        <div style="font-size: 15px; color: var(--text-muted); font-weight: 500; margin-top: 4px;">
+            N° Historia: <strong style="color: var(--primary);">{{ paciente.numero_historia }}</strong>
+            {% if paciente.dni %} · DNI: {{ paciente.dni }}{% endif %}
+            · {{ paciente.edad }} años · {{ 'Masculino' if paciente.sexo == 'M' else 'Femenino' }}
+        </div>
+    </div>
+    <div style="display:flex; gap:10px;">
+        <a href="{{ url_for('consultas.nueva', paciente_id=paciente.id) }}" class="btn btn-primario">
+            <span class="ico">🩺</span> Nueva Consulta
+        </a>
+        <a href="{{ url_for('pacientes.editar', id=paciente.id) }}" class="btn btn-secundario">
+            <span class="ico">✏️</span> Editar
+        </a>
+        <a href="{{ url_for('reportes.historia_clinica', paciente_id=paciente.id) }}"
+           target="_blank" class="btn btn-secundario">
+            <span class="ico">📄</span> PDF
+        </a>
+        <a href="{{ url_for('transferencia.transferir_paciente', paciente_id=paciente.id) }}"
+           class="btn btn-secundario">
+            <span class="ico">📤</span> Transferir
+        </a>
+    </div>
+</div>
+
+<div class="grid-3" style="margin-bottom:32px;">
+    <!-- Datos personales -->
+    <div class="card">
+        <div class="card-header">
+            <span class="card-title">👤 Información del Paciente</span>
+        </div>
+        <table style="font-size:14px;">
+            <tr>
+                <td style="color: var(--text-muted); font-weight: 600; padding: 8px 12px 8px 0; width: 40%;">Fecha Nacimiento</td>
+                <td style="padding: 8px 0;">{{ paciente.fecha_nacimiento.strftime('%d/%m/%Y') }}</td>
+            </tr>
+            <tr>
+                <td style="color: var(--text-muted); font-weight: 600; padding: 8px 12px 8px 0;">Teléfono</td>
+                <td>{{ paciente.telefono or '—' }}</td>
+            </tr>
+            <tr>
+                <td style="color: var(--text-muted); font-weight: 600; padding: 8px 12px 8px 0;">Distrito</td>
+                <td><span class="badge badge-gris">{{ paciente.distrito.nombre if paciente.distrito else '—' }}</span></td>
+            </tr>
+            <tr>
+                <td style="color: var(--text-muted); font-weight: 600; padding: 8px 12px 8px 0;">Ocupación</td>
+                <td>{{ paciente.ocupacion or '—' }}</td>
+            </tr>
+            <tr>
+                <td style="color: var(--text-muted); font-weight: 600; padding: 8px 12px 8px 0;">Etnia</td>
+                <td>{{ paciente.etnia or '—' }}</td>
+            </tr>
+        </table>
+    </div>
+
+    <!-- Información clínica -->
+    <div class="card" style="border-left: 4px solid var(--error);">
+        <div class="card-header">
+            <span class="card-title">🩸 Perfil Clínico</span>
+        </div>
+        <div style="margin-bottom:20px;">
+            <div style="font-size: 11px; font-weight: 800; color: var(--text-muted); letter-spacing: 1px; margin-bottom: 4px;">GRUPO SANGUÍNEO</div>
+            <div style="font-size: 32px; font-weight: 800; color: var(--error); line-height: 1;">
+                {{ paciente.grupo_sanguineo or '?' }}
+            </div>
+        </div>
+        <div style="margin-bottom:20px;">
+            <div style="font-size: 11px; font-weight: 800; color: var(--text-muted); letter-spacing: 1px; margin-bottom: 4px;">ALERGIAS</div>
+            <div style="font-size: 14px; font-weight: 600; color: {{ 'var(--error)' if paciente.alergias else 'var(--text-muted)' }};">
+                {{ paciente.alergias or 'Ninguna conocida' }}
+            </div>
+        </div>
+        <div>
+            <div style="font-size: 11px; font-weight: 800; color: var(--text-muted); letter-spacing: 1px; margin-bottom: 4px;">CONDICIONES CRÓNICAS</div>
+            <div style="font-size: 14px; font-weight: 600; color: {{ 'var(--warning)' if paciente.condiciones_cronicas else 'var(--text-muted)' }};">
+                {{ paciente.condiciones_cronicas or 'Ninguna registrada' }}
+            </div>
+        </div>
+    </div>
+
+    <!-- Enfermedades históricas -->
+    <div class="card">
+        <div class="card-header">
+            <span class="card-title">📋 Diagnósticos Previos</span>
+        </div>
+        {% if enfermedades_paciente %}
+            <div style="display: flex; flex-direction: column; gap: 10px;">
+            {% for e in enfermedades_paciente %}
+            <div style="display:flex; align-items:flex-start; gap:10px; padding: 10px; background: var(--bg-main); border-radius: 8px;">
+                <span class="badge badge-azul" style="flex-shrink: 0;">{{ e.codigo_icd10 }}</span>
+                <div style="font-size:13px; font-weight: 600;">
+                    {{ e.nombre_es }}
+                    {% if e.es_notificable %}
+                    <br><span class="badge badge-rojo" style="font-size: 10px; margin-top: 4px;">ALERTA EPIDEMIOLÓGICA</span>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+            </div>
+        {% else %}
+            <div style="text-align: center; padding: 20px; color: var(--text-muted);">
+                <p>Sin historial de diagnósticos.</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Historial de consultas -->
+<div class="card">
+    <div class="card-header">
+        <span class="card-title">🗂️ Historial de Consultas ({{ consultas|length }})</span>
+        <a href="{{ url_for('consultas.nueva', paciente_id=paciente.id) }}" class="btn btn-sm btn-primario">+ Nueva</a>
+    </div>
+
+    {% if consultas %}
+    <div class="tabla-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>Fecha</th>
+                    <th>Tipo</th>
+                    <th>Instalación</th>
+                    <th>Médico</th>
+                    <th>Diagnóstico Principal</th>
+                    <th>Estado</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for c in consultas %}
+                <tr>
+                    <td style="font-family:'IBM Plex Mono',monospace;font-size:12px;">
+                        {{ c.fecha_consulta.strftime('%d/%m/%Y') }}<br>
+                        <small style="color:#888">{{ c.fecha_consulta.strftime('%H:%M') }}</small>
+                    </td>
+                    <td><span class="badge badge-verde">{{ c.tipo | replace('_',' ') | title }}</span></td>
+                    <td style="font-size:12px;">{{ c.instalacion.nombre if c.instalacion else '—' }}</td>
+                    <td style="font-size:12px;">{{ c.medico.nombre_completo if c.medico else '—' }}</td>
+                    <td>
+                        {% set diags = c.diagnosticos.filter_by(es_principal=True).all() %}
+                        {% if diags %}
+                            <span class="badge badge-azul">{{ diags[0].enfermedad.codigo_icd10 }}</span>
+                            {{ diags[0].enfermedad.nombre_es }}
+                        {% else %}—{% endif %}
+                    </td>
+                    <td>
+                        <span class="badge {{ 'badge-verde' if c.estado == 'cerrada' else 'badge-naranja' }}">
+                            {{ c.estado | title }}
+                        </span>
+                    </td>
+                    <td><a href="{{ url_for('consultas.ver', id=c.id) }}" class="btn btn-sm btn-secundario">Ver</a></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p style="color:#888;text-align:center;padding:24px;font-size:13px;">No hay consultas registradas para este paciente.</p>
+    {% endif %}
+</div>
+
+<!-- Vacunas -->
+{% if vacunas %}
+<div class="card">
+    <div class="card-header">
+        <span class="card-title">💉 Registro de Vacunación</span>
+    </div>
+    <div class="tabla-wrapper">
+        <table>
+            <thead>
+                <tr><th>Vacuna</th><th>Fecha</th><th>Dosis</th><th>Lote</th><th>Próxima dosis</th></tr>
+            </thead>
+            <tbody>
+                {% for v in vacunas %}
+                <tr>
+                    <td>{{ v.nombre_vacuna }}</td>
+                    <td style="font-size:12px;">{{ v.fecha_aplicacion.strftime('%d/%m/%Y') }}</td>
+                    <td>{{ v.dosis_numero }}</td>
+                    <td style="font-size:12px;font-family:'IBM Plex Mono',monospace;">{{ v.lote or '—' }}</td>
+                    <td style="font-size:12px;">{{ v.proxima_dosis.strftime('%d/%m/%Y') if v.proxima_dosis else '—' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

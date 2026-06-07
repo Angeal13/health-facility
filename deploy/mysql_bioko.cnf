@@ -1,0 +1,52 @@
+# ╔══════════════════════════════════════════════╗
+# ║  BIOKO HEALTH — Configuración MySQL           ║
+# ║  Optimizado para hardware limitado            ║
+# ║  Guardar en: /etc/mysql/conf.d/bioko.cnf      ║
+# ╚══════════════════════════════════════════════╝
+#
+# Perfiles:
+#   MÍNIMO: Raspberry Pi 4 (4GB) / mini-PC básico
+#   NORMAL: mini-PC 8-16GB RAM
+#   SERVIDOR: 16-32GB RAM
+
+[mysqld]
+# ── Codificación (soporte español completo) ────
+character-set-server  = utf8mb4
+collation-server      = utf8mb4_unicode_ci
+init-connect          = 'SET NAMES utf8mb4'
+
+# ── InnoDB — ajustar según RAM disponible ──────
+# MÍNIMO  (4GB  RAM): innodb_buffer_pool_size = 512M
+# NORMAL  (8GB  RAM): innodb_buffer_pool_size = 2G
+# SERVIDOR(16GB RAM): innodb_buffer_pool_size = 8G
+innodb_buffer_pool_size     = 1G
+innodb_buffer_pool_instances = 2
+innodb_log_file_size        = 256M
+innodb_flush_log_at_trx_commit = 2   # Mejor rendimiento (riesgo mínimo en clínica)
+innodb_flush_method         = O_DIRECT
+
+# ── Conexiones ─────────────────────────────────
+max_connections         = 100
+max_connect_errors      = 1000000
+wait_timeout            = 600
+interactive_timeout     = 600
+
+# ── Query cache ────────────────────────────────
+# Deshabilitado en MySQL 8+ (deprecated)
+# query_cache_type = 0
+
+# ── Logs ───────────────────────────────────────
+slow_query_log          = 1
+slow_query_log_file     = /var/log/mysql/bioko_slow.log
+long_query_time         = 2
+log_error               = /var/log/mysql/bioko_error.log
+
+# ── Backup ─────────────────────────────────────
+# Permite mysqldump sin lock completo de la DB
+innodb_file_per_table   = 1
+
+[client]
+default-character-set = utf8mb4
+
+[mysql]
+default-character-set = utf8mb4

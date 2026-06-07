@@ -1,0 +1,40 @@
+# Bioko Health — Nginx Instalación Sanitaria
+# Solo escucha en la IP LAN — tablets sin internet
+
+upstream bioko_instalacion {
+    server 127.0.0.1:5000;
+    keepalive 16;
+}
+
+server {
+    listen LAN_IP:80;
+    server_name LAN_IP salud.local salud;
+    server_tokens off;
+    client_max_body_size 20M;
+
+    location / {
+        proxy_pass         http://bioko_instalacion;
+        proxy_set_header   Host $host;
+        proxy_set_header   X-Real-IP $remote_addr;
+        proxy_set_header   X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_read_timeout 120s;
+        proxy_buffer_size  16k;
+        proxy_buffers      4 32k;
+    }
+
+    location /static/ {
+        alias   /opt/bioko_health/app/static/;
+        expires 7d;
+        access_log off;
+    }
+
+    location /reportes/ {
+        proxy_pass http://bioko_instalacion;
+        proxy_read_timeout 180s;
+    }
+
+    add_header X-Frame-Options "SAMEORIGIN";
+    add_header X-Content-Type-Options "nosniff";
+    access_log /var/log/nginx/bioko_lan_access.log;
+    error_log  /var/log/nginx/bioko_lan_error.log warn;
+}

@@ -1,0 +1,383 @@
+{% extends "base.html" %}
+{% block title %}Panel de Red{% endblock %}
+{% block topbar_title %}Red de Instalaciones{% endblock %}
+
+{% block extra_css %}
+<style>
+.nodo-card {
+    border: 1px solid var(--gris-borde);
+    border-radius: 10px;
+    padding: 16px;
+    background: white;
+    position: relative;
+}
+.nodo-card.en-linea { border-left: 4px solid var(--verde); }
+.nodo-card.sin-conexion { border-left: 4px solid #aaa; }
+.nodo-card.error { border-left: 4px solid var(--rojo); }
+.pulso {
+    display: inline-block;
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: var(--verde);
+    animation: pulso 2s infinite;
+}
+.pulso.inactivo { background: #aaa; animation: none; }
+@keyframes pulso {
+    0%   { box-shadow: 0 0 0 0 rgba(26,107,74,0.5); }
+    70%  { box-shadow: 0 0 0 8px rgba(26,107,74,0); }
+    100% { box-shadow: 0 0 0 0 rgba(26,107,74,0); }
+}
+.url-caja {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--verde);
+    background: var(--verde-palido);
+    border: 2px dashed var(--verde);
+    border-radius: 8px;
+    padding: 14px 20px;
+    text-align: center;
+    letter-spacing: 0.5px;
+    cursor: pointer;
+    user-select: all;
+}
+.url-caja:hover { background: #d0ead9; }
+.instruccion-paso {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--gris-borde);
+}
+.instruccion-paso:last-child { border-bottom: none; }
+.paso-num {
+    min-width: 28px; height: 28px;
+    background: var(--verde);
+    color: white;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 700;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1>🌐 Red de Instalaciones</h1>
+        <div class="subtitulo">
+            Topología de red — Bioko Health
+            <span class="badge {{ 'badge-verde' if modo == 'local_server' else 'badge-azul' }}" style="margin-left:8px;">
+                {{ 'Servidor Local de Instalación' if modo == 'local_server' else 'Servidor Central' }}
+            </span>
+        </div>
+    </div>
+    <div style="display:flex;gap:8px;">
+        <button onclick="actualizarEstado()" class="btn btn-secundario">↺ Actualizar</button>
+        {% if sync_habilitado %}
+        <button onclick="registrarNodo()" class="btn btn-primario">📡 Registrarse con Central</button>
+        {% endif %}
+    </div>
+</div>
+
+<!-- ── Este servidor ─────────────────────────────── -->
+<div class="card" style="border-left: 4px solid var(--verde); margin-bottom: 20px;">
+    <div class="card-header">
+        <span class="card-title">🖥️ Este Servidor — {{ facility_name }}</span>
+        <span style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--verde);">
+            <span class="pulso"></span> En línea
+        </span>
+    </div>
+
+    <div class="grid-3" style="margin-bottom:20px;">
+        <div>
+            <div style="font-size:11px;font-weight:600;color:#888;text-transform:uppercase;margin-bottom:4px;">Código de instalación</div>
+            <div style="font-size:16px;font-weight:700;font-family:'IBM Plex Mono',monospace;">{{ facility_code }}</div>
+        </div>
+        <div>
+            <div style="font-size:11px;font-weight:600;color:#888;text-transform:uppercase;margin-bottom:4px;">IP en la red local</div>
+            <div style="font-size:16px;font-weight:700;font-family:'IBM Plex Mono',monospace;" id="ip-local">{{ ip_local }}</div>
+        </div>
+        <div>
+            <div style="font-size:11px;font-weight:600;color:#888;text-transform:uppercase;margin-bottom:4px;">Nombre de equipo</div>
+            <div style="font-size:16px;font-weight:700;font-family:'IBM Plex Mono',monospace;">{{ hostname }}</div>
+        </div>
+    </div>
+
+    <!-- URL de acceso para los PCs de la LAN -->
+    <div style="margin-bottom:16px;">
+        <div style="font-size:12px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">
+            📌 URL para conectar otros equipos a esta instalación
+        </div>
+        <div class="url-caja" id="url-lan" onclick="copiarURL(this)" title="Clic para copiar">
+            {{ lan_url or 'http://' + ip_local + ':' + port|string }}
+        </div>
+        <div style="font-size:12px;color:#888;text-align:center;margin-top:6px;">
+            Clic para copiar · Abrir en cualquier navegador de la red local
+        </div>
+    </div>
+
+    <!-- Instrucciones para nuevo PC -->
+    <details>
+        <summary style="cursor:pointer;font-size:13px;font-weight:600;color:var(--verde);padding:8px 0;">
+            ➕ ¿Cómo conectar un nuevo equipo a esta instalación?
+        </summary>
+        <div style="margin-top:12px;">
+            <div class="instruccion-paso">
+                <div class="paso-num">1</div>
+                <div>
+                    <strong>Conectar a la misma red</strong><br>
+                    <span style="font-size:13px;color:#555;">El equipo debe estar conectado al mismo WiFi o cable de red que este servidor.</span>
+                </div>
+            </div>
+            <div class="instruccion-paso">
+                <div class="paso-num">2</div>
+                <div>
+                    <strong>Abrir el navegador</strong><br>
+                    <span style="font-size:13px;color:#555;">En el nuevo equipo, abrir Chrome, Firefox o cualquier navegador web.</span>
+                </div>
+            </div>
+            <div class="instruccion-paso">
+                <div class="paso-num">3</div>
+                <div>
+                    <strong>Escribir la dirección</strong><br>
+                    <span style="font-size:13px;">En la barra de direcciones escribir exactamente:</span><br>
+                    <code style="background:var(--verde-palido);padding:4px 10px;border-radius:4px;font-size:15px;color:var(--verde);font-weight:700;">
+                        {{ lan_url or 'http://' + ip_local + ':' + port|string }}
+                    </code>
+                </div>
+            </div>
+            <div class="instruccion-paso">
+                <div class="paso-num">4</div>
+                <div>
+                    <strong>Iniciar sesión</strong><br>
+                    <span style="font-size:13px;color:#555;">Usar las credenciales asignadas por el administrador. Cada usuario puede tener su propia sesión activa en distintos equipos simultáneamente.</span>
+                </div>
+            </div>
+            <div style="background:#fef3e2;border-radius:8px;padding:12px 14px;margin-top:10px;font-size:13px;color:#7a5000;">
+                <strong>⚠ Sin internet no hay problema:</strong> El sistema funciona completamente sin conexión a internet.
+                Solo necesita estar en la misma red local (LAN) que este servidor.
+            </div>
+        </div>
+    </details>
+</div>
+
+<div class="grid-2">
+    <!-- ── Conexión con servidor central ───── -->
+    <div class="card">
+        <div class="card-header">
+            <span class="card-title">🔗 Servidor Central</span>
+            <button onclick="verificarCentral()" class="btn btn-sm btn-secundario">Verificar</button>
+        </div>
+
+        {% if not sync_habilitado %}
+        <div style="background:var(--gris-fondo);border-radius:8px;padding:14px;font-size:13px;color:#888;text-align:center;">
+            Sincronización no habilitada.<br>
+            Configure <code>SYNC_ENABLED=true</code> en el archivo <code>.env</code>
+        </div>
+        {% else %}
+        <div id="estado-central-panel">
+            {% if estado_central %}
+                {% if estado_central.disponible %}
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+                    <span class="pulso"></span>
+                    <div>
+                        <strong style="color:var(--verde);">Servidor central disponible</strong><br>
+                        <span style="font-size:12px;color:#666;">{{ estado_central.instalacion or central_url }}</span>
+                    </div>
+                </div>
+                {% else %}
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+                    <span class="pulso inactivo"></span>
+                    <div>
+                        <strong style="color:#888;">Sin conexión al servidor central</strong><br>
+                        <span style="font-size:12px;color:#aaa;">{{ estado_central.razon }}</span>
+                    </div>
+                </div>
+                <div style="background:#fef3e2;border-radius:6px;padding:10px;font-size:12px;color:#7a5000;">
+                    Los datos se guardan localmente y se sincronizarán automáticamente cuando se restablezca la conexión.
+                </div>
+                {% endif %}
+            {% endif %}
+        </div>
+
+        <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--gris-borde);">
+            <div style="font-size:12px;color:#888;margin-bottom:8px;">Servidor configurado:</div>
+            <code style="font-size:12px;word-break:break-all;">{{ central_url or '(no configurado)' }}</code>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:14px;">
+            <div style="text-align:center;">
+                <div style="font-size:20px;font-weight:700;color:var(--amarillo);font-family:'IBM Plex Mono',monospace;">{{ pendientes }}</div>
+                <div style="font-size:11px;color:#888;">Pendientes</div>
+            </div>
+            <div style="text-align:center;">
+                <div style="font-size:20px;font-weight:700;color:var(--rojo);font-family:'IBM Plex Mono',monospace;">{{ errores }}</div>
+                <div style="font-size:11px;color:#888;">Errores</div>
+            </div>
+            <div style="text-align:center;">
+                <div style="font-size:20px;font-weight:700;color:var(--naranja);font-family:'IBM Plex Mono',monospace;">{{ conflictos }}</div>
+                <div style="font-size:11px;color:#888;">Conflictos</div>
+            </div>
+        </div>
+
+        <div style="margin-top:14px;display:flex;gap:8px;">
+            <a href="{{ url_for('transferencia.estado_sync') }}" class="btn btn-sm btn-secundario">📋 Panel Sync</a>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- ── Nodos registrados (servidor central) ── -->
+    <div class="card">
+        <div class="card-header">
+            <span class="card-title">
+                {% if modo == 'central_server' %}🏥 Instalaciones Conectadas{% else %}🏥 Instalaciones en la Red{% endif %}
+            </span>
+        </div>
+
+        {% if instalaciones %}
+        <div style="display:flex;flex-direction:column;gap:10px;">
+            {% for inst in instalaciones %}
+            <div class="nodo-card {{ 'en-linea' if inst.es_nodo_local else 'sin-conexion' }}">
+                <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+                    <div>
+                        <strong style="font-size:14px;">{{ inst.nombre }}</strong>
+                        <div style="font-size:12px;color:#888;margin-top:2px;">
+                            <span class="badge badge-gris">{{ inst.codigo }}</span>
+                            <span class="badge badge-azul" style="margin-left:4px;">{{ inst.tipo | title }}</span>
+                        </div>
+                    </div>
+                    <span class="pulso {{ '' if inst.es_nodo_local else 'inactivo' }}"></span>
+                </div>
+                {% if inst.distrito %}
+                <div style="font-size:12px;color:#888;margin-top:6px;">📍 {{ inst.distrito.nombre }}</div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p style="color:#888;text-align:center;padding:20px;font-size:13px;">
+            Sin instalaciones registradas.
+        </p>
+        {% endif %}
+
+        <div style="margin-top:14px;">
+            <a href="{{ url_for('admin.instalaciones') }}" class="btn btn-sm btn-secundario">
+                ⚙️ Gestionar instalaciones
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Diagrama visual de la red -->
+<div class="card">
+    <div class="card-header">
+        <span class="card-title">🗺️ Topología de Red</span>
+    </div>
+    <div style="background:var(--gris-fondo);border-radius:8px;padding:20px;font-family:'IBM Plex Mono',monospace;font-size:13px;line-height:1.9;color:#444;overflow-x:auto;">
+        <div style="color:var(--azul);font-weight:700;">[ SERVIDOR CENTRAL — Malabo ]</div>
+        <div style="margin-left:20px;color:#888;">https://central.biokohealth.gq</div>
+        <div style="margin-left:10px;">│</div>
+        {% for inst in instalaciones %}
+        <div style="margin-left:10px;">
+            ├── <span style="color:var(--verde);font-weight:600;">{{ inst.nombre }}</span>
+            <span style="color:#aaa;font-size:11px;"> ({{ inst.codigo }})</span>
+        </div>
+        <div style="margin-left:30px;color:#aaa;">│    LAN: {{ inst.tipo | upper }}</div>
+        <div style="margin-left:30px;color:#888;">├── PC Recepción</div>
+        <div style="margin-left:30px;color:#888;">├── PC Médico 1</div>
+        <div style="margin-left:30px;color:#888;">└── PC Médico 2  <span style="font-size:10px;">(cualquier navegador)</span></div>
+        {% endfor %}
+        <div style="margin-top:12px;color:#888;font-size:11px;">
+            * Cada instalación tiene su propio servidor local.<br>
+            * Los PCs de la LAN se conectan al servidor local vía navegador.<br>
+            * El servidor local sincroniza con el servidor central cada 24h o bajo demanda.
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function copiarURL(el) {
+    const url = el.textContent.trim();
+    navigator.clipboard.writeText(url).then(() => {
+        const orig = el.textContent;
+        el.textContent = '✓ ¡Copiado!';
+        el.style.background = '#c8ecd4';
+        setTimeout(() => { el.textContent = orig; el.style.background = ''; }, 2000);
+    }).catch(() => {
+        el.select?.();
+        document.execCommand('copy');
+    });
+}
+
+async function verificarCentral() {
+    const panel = document.getElementById('estado-central-panel');
+    if (!panel) return;
+    panel.innerHTML = '<div style="color:#888;font-size:13px;text-align:center;padding:10px;">Verificando conexión...</div>';
+    try {
+        const res = await fetch('{{ url_for("red.verificar_central_ajax") }}');
+        const d = await res.json();
+        if (d.disponible) {
+            panel.innerHTML = `
+            <div style="display:flex;align-items:center;gap:10px;">
+                <span class="pulso"></span>
+                <div>
+                    <strong style="color:var(--verde);">Servidor central disponible</strong><br>
+                    <span style="font-size:12px;color:#666;">${d.instalacion || d.url || ''}</span>
+                </div>
+            </div>`;
+        } else {
+            panel.innerHTML = `
+            <div style="display:flex;align-items:center;gap:10px;">
+                <span class="pulso inactivo"></span>
+                <div>
+                    <strong style="color:#888;">Sin conexión</strong><br>
+                    <span style="font-size:12px;color:#aaa;">${d.razon || 'Error desconocido'}</span>
+                </div>
+            </div>
+            <div style="background:#fef3e2;border-radius:6px;padding:10px;font-size:12px;color:#7a5000;margin-top:10px;">
+                Los datos se guardan localmente y se sincronizarán cuando se restablezca la conexión.
+            </div>`;
+        }
+    } catch(e) {
+        panel.innerHTML = '<div style="color:#c0392b;font-size:13px;">Error al verificar.</div>';
+    }
+}
+
+async function registrarNodo() {
+    const btn = event.target;
+    btn.disabled = true;
+    btn.textContent = '⏳ Registrando...';
+    try {
+        const res = await fetch('{{ url_for("red.registrar_nodo") }}', { method: 'POST' });
+        const d = await res.json();
+        if (d.ok) {
+            btn.textContent = '✓ Registrado';
+            btn.style.background = 'var(--verde-claro)';
+        } else {
+            btn.textContent = 'Error: ' + (d.error || 'ver logs');
+            btn.disabled = false;
+        }
+    } catch(e) {
+        btn.textContent = 'Error de conexión';
+        btn.disabled = false;
+    }
+}
+
+async function actualizarEstado() {
+    try {
+        const res = await fetch('{{ url_for("red.estado_json") }}');
+        const d = await res.json();
+        const ipEl = document.getElementById('ip-local');
+        if (ipEl) ipEl.textContent = d.ip_local;
+        const urlEl = document.getElementById('url-lan');
+        if (urlEl) urlEl.textContent = d.lan_url;
+    } catch(e) {}
+}
+
+// Refrescar estado de conectividad cada 60 segundos
+setInterval(actualizarEstado, 60000);
+</script>
+{% endblock %}
