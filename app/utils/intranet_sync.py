@@ -317,11 +317,16 @@ class IntranetSyncEngine:
             if not paciente:
                 return  # El paciente aún no ha llegado — se intentará en el próximo pull
 
+            # Usuario sistema dedicado para datos externos (no contamina auditoría)
+            from app.models.models import Usuario
+            sistema = Usuario.query.filter_by(nombre_usuario='sistema_sync').first()
+            medico_externo_id = sistema.id if sistema else 1
+
             fecha = datetime.fromisoformat(data['fecha_consulta'])
             c = Consulta(
                 uuid=data['uuid'],
                 paciente_id=paciente.id,
-                medico_id=1,              # Usuario sistema para datos externos
+                medico_id=medico_externo_id,
                 instalacion_id=None,
                 fecha_consulta=fecha,
                 tipo=data.get('tipo', 'seguimiento'),

@@ -1,19 +1,24 @@
-import multiprocessing, os
+"""
+BIOKO HEALTH — Configuración de Gunicorn (producción)
+Uso: gunicorn -c deploy/gunicorn.conf.py wsgi:app
+"""
+import multiprocessing
 
-# Installation (hospital/clinic/puesto) — bind only to LAN interface
-# Tablets connect via local WiFi; this server is not reachable from internet
-bind = f"LAN_IP_PLACEHOLDER:{os.environ.get('LAN_PORT', '5000')}"
-backlog = 256
-workers = int(os.environ.get('GUNICORN_WORKERS', min(multiprocessing.cpu_count() * 2 + 1, 7)))
-worker_class = "sync"
-threads = 2
-timeout = 120
+bind = "127.0.0.1:5000"          # Solo localhost — nginx hace de proxy
+workers = 1                       # IMPORTANTE: 1 worker.
+# Los motores de sync (APScheduler + cola en memoria) viven en el proceso.
+# Múltiples workers duplicarían los jobs de sincronización.
+# Para más concurrencia usar threads:
+threads = 8
+worker_class = "gthread"
+timeout = 60
 keepalive = 5
-graceful_timeout = 30
-accesslog = "/var/log/bioko_health/gunicorn_access.log"
-errorlog  = "/var/log/bioko_health/gunicorn_error.log"
-loglevel  = "warning"
-pidfile   = "/run/bioko_health/gunicorn.pid"
-user = "bioko"
-group = "bioko"
-daemon = False
+
+# Logging
+accesslog = "logs/gunicorn-access.log"
+errorlog = "logs/gunicorn-error.log"
+loglevel = "info"
+
+# Seguridad
+limit_request_line = 4096
+limit_request_fields = 100

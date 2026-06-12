@@ -1,63 +1,179 @@
-# 🏥 Bioko Health — Instalación Sanitaria
+# BIOKO HEALTH
 
-**Hospital / Clínica / Puesto de Salud — República de Guinea Ecuatorial**
+Sistema Nacional de Historia Clínica Electrónica y Vigilancia Epidemiológica
+para la República de Guinea Ecuatorial.
 
-Un único repositorio para todos los tipos de instalación sanitaria.
-`FACILITY_TYPE` en `.env` determina qué módulos aparecen.
+**Un solo código — cuatro modos de despliegue** controlados por `FACILITY_MODE`:
 
-## Tipos de instalación
+| Modo | Descripción | Plantilla .env |
+|---|---|---|
+| `facility` | Instalación sanitaria (hospital/clínica/puesto) | `env-templates/instalacion.env.template` |
+| `provincial_node` | Nodo provincial (1 por provincia) | `env-templates/nodo-provincial.env.template` |
+| `central_server` | Servidor central del Ministerio (único) | `env-templates/central-ministerio.env.template` |
+| `annobon_node` | Nodo especial de Annobón (conectividad intermitente) | `env-templates/annobon.env.template` |
 
-```env
-FACILITY_TYPE=hospital   # Todos los módulos clínicos
-FACILITY_TYPE=clinica    # Módulos generales sin especialidades
-FACILITY_TYPE=puesto     # Básico: consultas, vacunas, urgencias
+---
+
+## Arquitectura
+
+```
+                    ┌──────────────────────────┐
+   NIVEL 1          │  SERVIDOR CENTRAL        │
+                    │  Ministerio — Malabo     │
+                    └────────────┬─────────────┘
+                                 │  WAN segura (TLS + token HMAC)
+            ┌────────────────────┼────────────────────┐
+   NIVEL 2  │                    │                    │
+      ┌─────┴─────┐       ┌──────┴──────┐      ┌──────┴──────┐
+      │ Nodo Prov. │       │ Nodo Prov.  │      │ Nodo Annobón│
+      │ Bioko Norte│  ...  │ Litoral     │      │ (intermit.) │
+      └─────┬─────┘       └──────┬──────┘      └──────┬──────┘
+            │ Fibra óptica intranet provincial        │
+   NIVEL 3  │                    │                    │
+      ┌─────┴────┐         ┌─────┴────┐         ┌─────┴────┐
+      │ Hospital │         │ Clínica  │         │ Puesto   │
+      └──────────┘         └──────────┘         └──────────┘
 ```
 
-## Instalar
+- **Intranet provincial (fibra óptica):** sincronización en tiempo real
+  (push inmediato + pull cada 30 s) entre instalaciones y su nodo provincial.
+- **WAN nacional:** solicitud de expedientes entre provincias, alertas
+  epidemiológicas al nivel central, sync nocturno de respaldo (02:00).
+- **Offline-first:** toda instalación opera sin red; los datos se encolan
+  y sincronizan automáticamente al recuperarse el enlace.
+
+---
+
+## Instalación en producción (Ubuntu Server 22.04+)
+
+### 1. Preparar el servidor
 
 ```bash
-# 1. Configurar
-cp .env.template .env
-# Editar:
-#   FACILITY_CODE=HMGE-001         (código único de esta instalación)
-#   FACILITY_NAME=Hospital General  (nombre completo)
-#   FACILITY_TYPE=hospital
-#   PROVINCIAL_NODE_URL=http://10.10.0.1:5000  (IP del nodo provincial)
-#   SYNC_API_TOKEN=<mismo-token-en-toda-la-red>
+sudo apt update && sudo apt install -y python3.12 python3.12-venv \
+    mysql-server nginx git
 
-# 2. Instalar
-sudo bash instalar.sh
+# Usuario de servicio sin shell
+sudo useradd -r -s /usr/sbin/nologin -d /opt/bioko-health bioko
 ```
 
-El instalador configura automáticamente:
-- Python, MySQL, Nginx, Gunicorn
-- WiFi DHCP para tablets (dnsmasq)
-- Firewall: tablets sin acceso a internet
-- Servicio systemd + backup cron diario
+### 2. Base de datos
+
+```bash
+sudo mysql << 'SQL'
+CREATE DATABASE bioko_health CHARACTER SET utf8mb4 COLLATE utf8mb4_spanish_ci;
+CREATE USER 'bioko_user'@'localhost' IDENTIFIED BY 'CAMBIAR_ESTE_PASSWORD';
+GRANT ALL PRIVILEGES ON bioko_health.* TO 'bioko_user'@'localhost';
+FLUSH PRIVILEGES;
+SQL
+```
+
+### 3. Aplicación
+
+```bash
+sudo mkdir -p /opt/bioko-health
+sudo chown bioko:bioko /opt/bioko-health
+# Copiar el código a /opt/bioko-health (git clone o scp del zip)
+
+cd /opt/bioko-health
+python3.12 -m venv venv
+./venv/bin/pip install -r requirements.txt
+
+# Configuración — elegir la plantilla del tipo de nodo:
+cp env-templates/instalacion.env.template .env
+nano .env   # Completar SECRET_KEY, DATABASE_URL, FACILITY_CODE, tokens
+
+# Generar SECRET_KEY:
+python3 -c "import secrets; print(secrets.token_hex(32))"
+```
+
+### 4. Inicializar la base de datos
+
+```bash
+./venv/bin/python scripts/seed_db.py
+# ⚠ ANOTAR la contraseña del admin que se muestra — solo se muestra una vez
+```
+
+### 5. Servicio y proxy
+
+```bash
+sudo cp deploy/bioko-health.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now bioko-health
+
+sudo cp deploy/nginx-bioko.conf /etc/nginx/sites-available/bioko-health
+sudo ln -s /etc/nginx/sites-available/bioko-health /etc/nginx/sites-enabled/
+# Colocar certificados TLS en /etc/ssl/bioko/ (ver nota abajo)
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+### 6. Backup automático
+
+```bash
+sudo crontab -e
+# Añadir (backup diario 01:30, antes del sync de las 02:00):
+30 1 * * * /opt/bioko-health/deploy/backup_db.sh >> /opt/bioko-health/logs/backup.log 2>&1
+```
+
+### Certificados TLS
+
+- **Intranet provincial:** usar una CA interna del proyecto (los nodos no
+  tienen dominio público). Generar con `openssl` o `mkcert` y distribuir
+  la CA raíz a los navegadores de las instalaciones.
+- **Servidor central (dominio público):** `sudo certbot --nginx -d central.biokohealth.gq`
+
+---
+
+## Seguridad incorporada
+
+| Control | Implementación |
+|---|---|
+| Passwords | bcrypt (Flask-Bcrypt) |
+| CSRF | Flask-WTF en todos los formularios; API de sync exenta (usa tokens HMAC) |
+| Fuerza bruta | Rate limiting en login: 10 intentos/min por IP (Flask-Limiter) |
+| Open redirect | Validación de `next` contra host propio |
+| Sesiones | Timeout 8 h inactividad, cookies HttpOnly + Secure + SameSite |
+| Entre nodos | Token HMAC compartido (`X-Bioko-Token`), comparación constant-time |
+| Transporte | TLS terminado en nginx; HSTS activo |
+| Cabeceras | X-Frame-Options, X-Content-Type-Options, Referrer-Policy |
+| Roles | 7 niveles; escritura clínica restringida a médico/enfermero |
+| Auditoría | Log de accesos fallidos con IP; RegistroSync de toda operación |
+
+---
 
 ## Desarrollo local
 
 ```bash
 python3 -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
-cp .env.template .env            # FLASK_ENV=development usa SQLite
-python scripts/seed_db.py
-python run.py                    # → http://localhost:5000
+cp env-templates/instalacion.env.template .env
+# Editar .env: SECRET_KEY=cualquier-valor-dev, dejar DATABASE_URL vacío (usa SQLite)
+sed -i 's|^DATABASE_URL=.*|# DATABASE_URL no definido → SQLite local|' .env
+FLASK_ENV=development python scripts/seed_db.py
+FLASK_ENV=development python run.py
+# → http://localhost:5000
 ```
 
-## Comunicación
+## Estructura del proyecto
 
-| Origen | Destino | Red |
-|--------|---------|-----|
-| Tablets / PCs del personal | Este servidor (mini-PC) | WiFi local del edificio |
-| Este servidor | Nodo Provincial | Intranet provincial |
-| Tablets | Internet | ❌ Bloqueado por firewall |
+```
+bioko-health/
+├── app/
+│   ├── __init__.py          # Application factory (create_app)
+│   ├── models/models.py     # Modelos SQLAlchemy (3 niveles)
+│   ├── routes/              # Blueprints: auth, pacientes, consultas,
+│   │                        # epidemiología, sync, provincial, admin...
+│   ├── templates/           # Jinja2 (todas las vistas)
+│   └── utils/               # Motores de sync, generador de PDFs
+├── scripts/seed_db.py       # Carga inicial de catálogos
+├── deploy/                  # nginx, gunicorn, systemd, backup
+├── env-templates/           # Plantillas .env por tipo de nodo
+├── config.py                # Configuración central
+├── wsgi.py                  # Entrada producción (gunicorn)
+├── run.py                   # Entrada desarrollo
+└── requirements.txt
+```
 
-Este servidor **nunca** habla directamente con el Ministerio
-ni con otras instalaciones. Todo pasa por el nodo provincial.
+---
 
-## Repos relacionados
-
-- [`bioko-health-ministerio`](../bioko-health-ministerio)
-- [`bioko-health-nodo-provincial`](../bioko-health-nodo-provincial)
-- [`bioko-health-annobon`](../bioko-health-annobon)
+**BP Tecnología S.L.** — Malabo, Guinea Ecuatorial
+Documento interno. Sistema desarrollado para el Ministerio de Sanidad y Bienestar Social.

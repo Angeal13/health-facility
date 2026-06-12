@@ -1,12 +1,41 @@
-from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify
+from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify, abort
 from flask_login import login_required, current_user
 from datetime import datetime
+from functools import wraps
 
 from app.models.models import (db, Consulta, Paciente, Diagnostico, ConsultaSintoma,
                                 Prescripcion, ExamenLaboratorio, Enfermedad, Sintoma,
                                 Instalacion, AlertaEpidemiologica, RegistroSync)
 
 consultas_bp = Blueprint('consultas', __name__)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CONTROL DE ROLES — FIX SEGURIDAD
+# Solo personal clínico puede crear/modificar consultas. Recepción y
+# epidemiología tienen acceso de lectura pero NO de escritura clínica.
+# ─────────────────────────────────────────────────────────────────────────────
+
+ROLES_CLINICOS = ('medico', 'enfermero', 'admin', 'superadmin')
+ROLES_LABORATORIO = ('laboratorio', 'medico', 'admin', 'superadmin')
+
+
+def solo_personal_clinico(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if current_user.rol not in ROLES_CLINICOS:
+            abort(403)
+        return f(*args, **kwargs)
+    return decorated
+
+
+def solo_laboratorio_o_medico(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if current_user.rol not in ROLES_LABORATORIO:
+            abort(403)
+        return f(*args, **kwargs)
+    return decorated
 
 
 def verificar_umbral_alerta(enfermedad_id, distrito_id):
@@ -50,6 +79,7 @@ def verificar_umbral_alerta(enfermedad_id, distrito_id):
 @consultas_bp.route('/nueva', methods=['GET', 'POST'])
 @consultas_bp.route('/nueva/<int:paciente_id>', methods=['GET', 'POST'])
 @login_required
+@solo_personal_clinico
 def nueva(paciente_id=None):
     paciente = None
     if paciente_id:
@@ -166,6 +196,7 @@ def ver(id):
 
 @consultas_bp.route('/<int:id>/agregar-examen', methods=['POST'])
 @login_required
+@solo_personal_clinico
 def agregar_examen(id):
     consulta = Consulta.query.get_or_404(id)
     examen = ExamenLaboratorio(
@@ -181,6 +212,7 @@ def agregar_examen(id):
 
 @consultas_bp.route('/examen/<int:examen_id>/resultado', methods=['POST'])
 @login_required
+@solo_laboratorio_o_medico
 def cargar_resultado(examen_id):
     examen = ExamenLaboratorio.query.get_or_404(examen_id)
     examen.resultado = request.form.get('resultado', '').strip()

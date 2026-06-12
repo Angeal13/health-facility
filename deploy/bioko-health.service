@@ -1,0 +1,28 @@
+# BIOKO HEALTH — Servicio systemd
+# Instalación:
+#   sudo cp deploy/bioko-health.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now bioko-health
+[Unit]
+Description=Bioko Health — Sistema Nacional de Salud Digital
+After=network.target mysql.service
+
+[Service]
+Type=simple
+User=bioko
+Group=bioko
+WorkingDirectory=/opt/bioko-health
+Environment="PATH=/opt/bioko-health/venv/bin"
+EnvironmentFile=/opt/bioko-health/.env
+ExecStart=/opt/bioko-health/venv/bin/gunicorn -c deploy/gunicorn.conf.py wsgi:app
+Restart=always
+RestartSec=5
+
+# Endurecimiento
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ReadWritePaths=/opt/bioko-health/logs /opt/bioko-health/instance /opt/bioko-health/backups
+
+[Install]
+WantedBy=multi-user.target

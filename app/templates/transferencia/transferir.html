@@ -43,6 +43,7 @@
 
         <form method="POST" action="{{ url_for('transferencia.transferir_paciente', paciente_id=paciente.id) }}"
               id="form-transferencia">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
             <div class="form-grupo">
                 <label>Instalación Destino</label>

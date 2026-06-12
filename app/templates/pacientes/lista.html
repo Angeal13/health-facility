@@ -115,7 +115,7 @@
       {% endif %}
     {% endfor %}
     {% if pacientes.has_next %}
-    <a href="{{ url_for('pacientes.lista', pagina=pacientes.next_num, q=busqueda, distrito=distrito_seleccionado) }}">Siguiente →</a>
+    <a href="{{ url_for('pacientes.lista', pagina=page, q=busqueda, distrito=distrito_seleccionado) }}">Siguiente →</a>
     {% endif %}
   </div>
   {% endif %}

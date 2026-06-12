@@ -94,11 +94,13 @@
                     <td>
                         <form method="POST" action="{{ url_for('transferencia.resolver_conflicto', sync_id=r.id) }}"
                               style="display:inline;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             <input type="hidden" name="accion" value="reintentar">
                             <button type="submit" class="btn btn-sm btn-secundario">↺ Reintentar</button>
                         </form>
                         <form method="POST" action="{{ url_for('transferencia.resolver_conflicto', sync_id=r.id) }}"
                               style="display:inline;margin-left:4px;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             <input type="hidden" name="accion" value="omitir">
                             <button type="submit" class="btn btn-sm btn-secundario">✓ Omitir</button>
                         </form>
